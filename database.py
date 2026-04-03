@@ -202,7 +202,7 @@ def init_db():
             imovel_id   INTEGER NOT NULL,
             nome_orig   TEXT NOT NULL,
             mime        TEXT NOT NULL DEFAULT 'image/jpeg',
-            dados       BLOB NOT NULL,
+            dados       BLOB,
             ordem       INTEGER NOT NULL DEFAULT 0,
             criado_em   TEXT NOT NULL DEFAULT (datetime('now','localtime')),
             FOREIGN KEY (imovel_id) REFERENCES imoveis(id) ON DELETE CASCADE
@@ -272,7 +272,23 @@ def migrate_from_files(imoveis_dir):
         caminho = os.path.join(imoveis_dir, pasta)
         if not os.path.isdir(caminho):
             continue
-        if c.execute('SELECT id FROM imoveis WHERE slug=?', (pasta,)).fetchone():
+        existing = c.execute('SELECT id FROM imoveis WHERE slug=?', (pasta,)).fetchone()
+        if existing:
+            # Garante que as fotos estão registradas (sem blob)
+            imovel_id = existing['id']
+            if not c.execute('SELECT id FROM fotos WHERE imovel_id=?', (imovel_id,)).fetchone():
+                ordem = 0
+                for arq in sorted(os.listdir(caminho)):
+                    if arq.lower().endswith(('.jpg', '.jpeg', '.png')):
+                        mime = 'image/png' if arq.lower().endswith('.png') else 'image/jpeg'
+                        try:
+                            c.execute('INSERT INTO fotos (imovel_id,nome_orig,mime,dados,ordem) VALUES (?,?,?,NULL,?)',
+                                      (imovel_id, arq, mime, ordem))
+                            ordem += 1
+                        except Exception:
+                            pass
+                if ordem:
+                    conn.commit()
             continue
         dados = _parse_desc(caminho)
         if not dados:
@@ -297,10 +313,10 @@ def migrate_from_files(imoveis_dir):
         for arq in sorted(os.listdir(caminho)):
             if arq.lower().endswith(('.jpg', '.jpeg', '.png')):
                 try:
-                    foto_bytes = open(os.path.join(caminho, arq), 'rb').read()
                     mime = 'image/png' if arq.lower().endswith('.png') else 'image/jpeg'
-                    c.execute('INSERT INTO fotos (imovel_id,nome_orig,mime,dados,ordem) VALUES (?,?,?,?,?)',
-                              (imovel_id, arq, mime, foto_bytes, ordem))
+                    # Salva só o registro — dados fica NULL, foto servida do filesystem
+                    c.execute('INSERT INTO fotos (imovel_id,nome_orig,mime,dados,ordem) VALUES (?,?,?,NULL,?)',
+                              (imovel_id, arq, mime, ordem))
                     ordem += 1
                 except Exception:
                     pass

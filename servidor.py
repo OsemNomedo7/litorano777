@@ -144,19 +144,27 @@ def api_copy(iid):
 @app.route('/api/foto/<int:fid>')
 def api_foto(fid):
     conn = get_db()
-    row = conn.execute('SELECT dados, mime FROM fotos WHERE id=?', (fid,)).fetchone()
+    row = conn.execute('''
+        SELECT f.dados, f.mime, f.nome_orig, i.slug
+        FROM fotos f JOIN imoveis i ON i.id = f.imovel_id
+        WHERE f.id=?
+    ''', (fid,)).fetchone()
     conn.close()
-    if not row or not row['dados']:
+    if not row:
         return '', 404
+    # Fotos migradas do filesystem: dados vazio, serve o arquivo direto
     dados = row['dados']
+    if not dados:
+        filepath = os.path.join(IMOVEIS_DIR, row['slug'], row['nome_orig'])
+        if os.path.exists(filepath):
+            return send_file(filepath, mimetype=row['mime'])
+        return '', 404
     if isinstance(dados, memoryview):
         dados = bytes(dados)
     elif not isinstance(dados, bytes):
         import base64 as _b64
-        try:
-            dados = _b64.b64decode(dados)
-        except Exception:
-            dados = bytes(dados)
+        try: dados = _b64.b64decode(dados)
+        except Exception: dados = bytes(dados)
     return Response(dados, mimetype=row['mime'])
 
 @app.route('/api/funil')
