@@ -146,9 +146,18 @@ def api_foto(fid):
     conn = get_db()
     row = conn.execute('SELECT dados, mime FROM fotos WHERE id=?', (fid,)).fetchone()
     conn.close()
-    if not row:
+    if not row or not row['dados']:
         return '', 404
-    return Response(bytes(row['dados']), mimetype=row['mime'])
+    dados = row['dados']
+    if isinstance(dados, memoryview):
+        dados = bytes(dados)
+    elif not isinstance(dados, bytes):
+        import base64 as _b64
+        try:
+            dados = _b64.b64decode(dados)
+        except Exception:
+            dados = bytes(dados)
+    return Response(dados, mimetype=row['mime'])
 
 @app.route('/api/funil')
 def api_funil():
@@ -173,6 +182,13 @@ def api_log():
 @app.route('/api/me')
 def api_me():
     return jsonify({'username': session.get('username'), 'role': session.get('role')})
+
+@app.route('/api/debug/fotos')
+def api_debug_fotos():
+    conn = get_db()
+    rows = conn.execute('SELECT id, imovel_id, nome_orig, mime, LENGTH(dados) as tamanho, ordem FROM fotos ORDER BY imovel_id, ordem').fetchall()
+    conn.close()
+    return jsonify([dict(r) for r in rows])
 
 # ─── UTILITÁRIOS PDF ─────────────────────────────────────────────────────────
 
