@@ -2084,15 +2084,12 @@ async function carregarImoveis() {
     const lista = await resp.json();
     const grid = document.getElementById('imoveis-grid');
     if (!lista.length) {
-      grid.innerHTML = '<div style="color:var(--muted);font-size:12px">Nenhum imovel encontrado na pasta /imoveis</div>';
+      grid.innerHTML = '<div style="color:var(--muted);font-size:12px">Nenhum imovel cadastrado.</div>';
       return;
     }
     grid.innerHTML = lista.map(im => {
-      const id = 'card-' + im.pasta.replace(/[^a-z0-9]/gi,'_');
-      const fotoUrl = im.foto
-        ? '/api/imovel/' + encodeURIComponent(im.pasta) + '/foto/' + encodeURIComponent(im.foto)
-        : null;
-      const imJson = JSON.stringify(im).replace(/'/g,"&#39;");
+      const id = 'card-' + String(im.id);
+      const fotoUrl = im.foto_id ? '/api/foto/' + im.foto_id : null;
       return '<div class="imovel-card" id="' + id + '" onclick=\'selecionarImovel(' + JSON.stringify(JSON.stringify(im)) + ')\'>'
         + (fotoUrl ? '<img src="'+fotoUrl+'" alt="'+im.nome+'">' : '<div style="width:100%;height:130px;background:rgba(0,245,255,.05);display:flex;align-items:center;justify-content:center;font-size:36px">&#x1F3E0;</div>')
         + '<div class="imovel-card-info">'
@@ -2101,7 +2098,7 @@ async function carregarImoveis() {
         + '</div></div>';
     }).join('');
   } catch(e) {
-    document.getElementById('imoveis-grid').innerHTML = '<div style="color:var(--nk);font-size:12px">Servidor nao encontrado. Inicie o iniciar.bat.</div>';
+    document.getElementById('imoveis-grid').innerHTML = '<div style="color:var(--nk);font-size:12px">Erro ao carregar imoveis: ' + e.message + '</div>';
   }
 }
 
@@ -2110,7 +2107,7 @@ function selecionarImovel(imJson) {
   imovelAtual = im;
 
   document.querySelectorAll('.imovel-card').forEach(c => c.classList.remove('ativo'));
-  const card = document.getElementById('card-' + im.pasta.replace(/[^a-z0-9]/gi,'_'));
+  const card = document.getElementById('card-' + im.id);
   if (card) card.classList.add('ativo');
 
   document.getElementById('imovel-selecionado').style.display = '';
@@ -2126,7 +2123,7 @@ function selecionarImovel(imJson) {
   setVal('lEndereco', im.endereco);
   setVal('lCEP',      im.cep);
 
-  fetch('/api/imovel/' + encodeURIComponent(im.pasta) + '/copy')
+  fetch('/api/imovel/' + im.id + '/copy')
     .then(r => r.ok ? r.text() : '')
     .then(txt => {
       const el = document.getElementById('copy-anuncio');
