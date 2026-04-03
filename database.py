@@ -1,20 +1,115 @@
-import sqlite3, hashlib, os, json, re
+import sqlite3, hashlib, os, json, re, base64, urllib.request, urllib.error
 
 BASE     = os.path.dirname(os.path.abspath(__file__))
 DATA_DIR = os.environ.get('DATA_DIR', os.path.join(BASE, 'data'))
 DB_PATH  = os.path.join(DATA_DIR, 'litorano.db')
 
-TURSO_URL   = os.environ.get('TURSO_URL')
-TURSO_TOKEN = os.environ.get('TURSO_TOKEN')
+TURSO_URL   = os.environ.get('TURSO_URL', '')
+TURSO_TOKEN = os.environ.get('TURSO_TOKEN', '')
+
+# ─── TURSO HTTP CLIENT ────────────────────────────────────────────────────────
+
+def _turso_arg(v):
+    if v is None:                return {"type": "null"}
+    if isinstance(v, bytes):     return {"type": "blob",    "base64": base64.b64encode(v).decode()}
+    if isinstance(v, bool):      return {"type": "integer", "value": str(int(v))}
+    if isinstance(v, int):       return {"type": "integer", "value": str(v)}
+    if isinstance(v, float):     return {"type": "real",    "value": str(v)}
+    return {"type": "text", "value": str(v)}
+
+def _turso_val(v):
+    if v is None: return None
+    t = v.get("type")
+    if t == "null":    return None
+    if t == "integer": return int(v["value"])
+    if t == "real":    return float(v["value"])
+    if t == "blob":    return base64.b64decode(v["base64"])
+    return v.get("value")
+
+class _TRow:
+    def __init__(self, cols, vals):
+        self._c = cols; self._v = vals
+        self._d = dict(zip(cols, vals))
+    def __getitem__(self, k):
+        return self._v[k] if isinstance(k, int) else self._d[k]
+    def __iter__(self): return iter(self._v)
+    def keys(self):     return self._c
+    def get(self, k, d=None): return self._d.get(k, d)
+
+class _TCursor:
+    def __init__(self, url, token):
+        self._url   = url.replace('libsql://', 'https://') + '/v2/pipeline'
+        self._token = token
+        self._rows  = []; self._cols = []; self.lastrowid = None
+
+    def _req(self, stmts):
+        requests = [{"type": "execute", "stmt": s} for s in stmts]
+        requests.append({"type": "close"})
+        body = json.dumps({"requests": requests}).encode()
+        req  = urllib.request.Request(self._url, data=body, headers={
+            'Authorization': f'Bearer {self._token}',
+            'Content-Type':  'application/json'
+        })
+        try:
+            with urllib.request.urlopen(req, timeout=30) as r:
+                return json.loads(r.read())
+        except urllib.error.HTTPError as e:
+            raise Exception(f"Turso HTTP {e.code}: {e.read().decode()}")
+
+    def execute(self, sql, params=()):
+        stmt = {"sql": sql, "args": [_turso_arg(p) for p in params]}
+        data = self._req([stmt])
+        res  = data["results"][0]
+        if res.get("type") == "error":
+            raise Exception(res["error"]["message"])
+        r = res.get("response", {}).get("result", {})
+        self._cols = [c["name"] for c in r.get("cols", [])]
+        self._rows = [[_turso_val(v) for v in row] for row in r.get("rows", [])]
+        lid = r.get("last_insert_rowid")
+        self.lastrowid = int(lid) if lid else None
+        return self
+
+    def executemany(self, sql, seq):
+        stmts = [{"sql": sql, "args": [_turso_arg(p) for p in params]} for params in seq]
+        if not stmts: return
+        data = self._req(stmts)
+        for res in data["results"]:
+            if res.get("type") == "error":
+                raise Exception(res["error"]["message"])
+
+    def executescript(self, script):
+        for stmt in script.split(';'):
+            s = stmt.strip()
+            if s:
+                try: self.execute(s)
+                except Exception: pass
+
+    def fetchone(self):
+        if not self._rows: return None
+        return _TRow(self._cols, self._rows[0])
+
+    def fetchall(self):
+        return [_TRow(self._cols, r) for r in self._rows]
+
+    def __iter__(self): return iter(self.fetchall())
+
+class _TConn:
+    def __init__(self, url, token):
+        self._url = url; self._token = token
+        self.row_factory = None
+
+    def cursor(self):        return _TCursor(self._url, self._token)
+    def execute(self, *a):   c = self.cursor(); c.execute(*a);   return c
+    def executemany(self, *a): c = self.cursor(); c.executemany(*a); return c
+    def executescript(self, *a): c = self.cursor(); c.executescript(*a); return c
+    def commit(self):        pass
+    def close(self):         pass
 
 # ─── CONEXÃO ──────────────────────────────────────────────────────────────────
 
 def get_db():
     if TURSO_URL and TURSO_TOKEN:
-        import libsql_experimental as libsql
-        conn = libsql.connect(TURSO_URL, auth_token=TURSO_TOKEN)
-        conn.row_factory = sqlite3.Row
-        return conn
+        return _TConn(TURSO_URL, TURSO_TOKEN)
     os.makedirs(DATA_DIR, exist_ok=True)
     conn = sqlite3.connect(DB_PATH, check_same_thread=False)
     conn.row_factory = sqlite3.Row
@@ -132,9 +227,8 @@ def init_db():
             detalhes    TEXT,
             ip          TEXT,
             criado_em   TEXT NOT NULL DEFAULT (datetime('now','localtime'))
-        );
+        )
     ''')
-    # Admin padrão — credenciais: milionariog7 / milionariog777
     c.execute('INSERT OR IGNORE INTO users (username, pwd_hash, role) VALUES (?,?,?)',
               ('milionariog7', h('milionariog777'), 'admin'))
     c.executemany('INSERT OR IGNORE INTO config (chave, valor) VALUES (?,?)', ADS_DEFAULT)
