@@ -18,7 +18,7 @@ app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024
 
 # ─── AUTH ─────────────────────────────────────────────────────────────────────
 
-PUBLIC = {'login', 'logo', 'static'}
+PUBLIC = {'login', 'logo', 'static', 'api_debug_fotos'}
 
 @app.before_request
 def check_auth():
