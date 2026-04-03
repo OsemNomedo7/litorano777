@@ -4,9 +4,17 @@ BASE     = os.path.dirname(os.path.abspath(__file__))
 DATA_DIR = os.environ.get('DATA_DIR', os.path.join(BASE, 'data'))
 DB_PATH  = os.path.join(DATA_DIR, 'litorano.db')
 
+TURSO_URL   = os.environ.get('TURSO_URL')
+TURSO_TOKEN = os.environ.get('TURSO_TOKEN')
+
 # ─── CONEXÃO ──────────────────────────────────────────────────────────────────
 
 def get_db():
+    if TURSO_URL and TURSO_TOKEN:
+        import libsql_experimental as libsql
+        conn = libsql.connect(TURSO_URL, auth_token=TURSO_TOKEN)
+        conn.row_factory = sqlite3.Row
+        return conn
     os.makedirs(DATA_DIR, exist_ok=True)
     conn = sqlite3.connect(DB_PATH, check_same_thread=False)
     conn.row_factory = sqlite3.Row
