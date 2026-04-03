@@ -152,19 +152,20 @@ def api_foto(fid):
     conn.close()
     if not row:
         return '', 404
-    # Fotos migradas do filesystem: dados vazio, serve o arquivo direto
+    # Tenta servir do filesystem primeiro (mais rápido e confiável)
+    filepath = os.path.join(IMOVEIS_DIR, row['slug'], row['nome_orig'])
+    if os.path.exists(filepath):
+        return send_file(filepath, mimetype=row['mime'])
+    # Fallback: blob no banco (fotos enviadas pelo admin)
     dados = row['dados']
     if not dados:
-        filepath = os.path.join(IMOVEIS_DIR, row['slug'], row['nome_orig'])
-        if os.path.exists(filepath):
-            return send_file(filepath, mimetype=row['mime'])
         return '', 404
     if isinstance(dados, memoryview):
         dados = bytes(dados)
     elif not isinstance(dados, bytes):
         import base64 as _b64
         try: dados = _b64.b64decode(dados)
-        except Exception: dados = bytes(dados)
+        except Exception: return '', 500
     return Response(dados, mimetype=row['mime'])
 
 @app.route('/api/funil')
