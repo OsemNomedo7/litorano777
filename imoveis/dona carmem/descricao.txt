@@ -1,0 +1,13 @@
+Nome: Apto Dona Carmem - Praia Grande
+Endereco: Av. Atlantica, 174 - Praia Grande, Ubatuba - SP, 11680-000
+Cidade: Ubatuba
+Estado: SP
+Cod_Imovel: 9512345678
+Quartos: 2
+Banheiros: 2
+Area: 90
+Mobiliado: Sim
+Destaque_1: 30m da praia
+Destaque_2: Frente mar
+Destaque_3: Garagem coberta
+Descricao: Lindo apartamento totalmente mobiliado, frente mar, cozinha equipada, Wi-Fi. Ideal para temporada em familia e amigos.

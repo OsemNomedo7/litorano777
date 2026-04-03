@@ -1,0 +1,13 @@
+Nome: Apto Dona Carmem 2 - Varanda Gourmet
+Endereco: Av. Atlantica, 174 - Praia Grande, Ubatuba - SP, 11680-000
+Cidade: Ubatuba
+Estado: SP
+Cod_Imovel: 9512345679
+Quartos: 2
+Banheiros: 2
+Area: 90
+Mobiliado: Sim
+Destaque_1: 30m da praia
+Destaque_2: Varanda gourmet
+Destaque_3: Todo reformado
+Descricao: Apartamento completamente reformado com acabamento moderno, frente mar, varanda gourmet equipada para churrascos. Totalmente mobiliado, cozinha equipada, Wi-Fi. Ideal para quem quer conforto e sofisticacao a beira mar.

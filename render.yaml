@@ -1,0 +1,15 @@
+services:
+  - type: web
+    name: litorano
+    runtime: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn servidor:app
+    envVars:
+      - key: SECRET_KEY
+        generateValue: true
+      - key: DATA_DIR
+        value: /opt/render/project/src/data
+    disk:
+      name: litorano-data
+      mountPath: /opt/render/project/src/data
+      sizeGB: 1

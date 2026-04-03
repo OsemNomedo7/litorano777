@@ -1,0 +1,13 @@
+Nome: Vilage Toninhas - Condominio com Piscinas
+Endereco: Rua Dr. Ary de Carvalho, 35 - Toninhas, Ubatuba - SP, 11680-000
+Cidade: Ubatuba
+Estado: SP
+Cod_Imovel: 9512345677
+Quartos: 3
+Banheiros: 2
+Area: 120
+Mobiliado: Sim
+Destaque_1: 300m da praia
+Destaque_2: Piscinas no condominio
+Destaque_3: Garagem
+Descricao: Linda casa com acabamento premium, totalmente mobiliada, condominio com piscinas, cozinha equipada, ar-condicionado em todos os quartos. Ideal para temporada em familia.

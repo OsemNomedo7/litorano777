@@ -1,0 +1,763 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>LITORANO 1.0 — Admin</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap');
+:root{--bg:#03030d;--bg2:#07071a;--bg3:#0b0b22;--nc:#00f5ff;--np:#bf5af2;--nk:#ff2d78;--ng:#39ff14;--ny:#ffd60a;--no:#ff6b00;--text:#ccd0f0;--muted:#4a4a7a;}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Segoe UI',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;display:flex;overflow-x:hidden}
+body::before{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;background-image:linear-gradient(rgba(0,245,255,.018) 1px,transparent 1px),linear-gradient(90deg,rgba(0,245,255,.018) 1px,transparent 1px);background-size:44px 44px}
+
+/* SIDEBAR */
+.sidebar{width:220px;min-height:100vh;background:rgba(7,7,26,.97);border-right:1px solid rgba(0,245,255,.1);display:flex;flex-direction:column;position:fixed;top:0;left:0;z-index:100}
+.sb-logo{padding:24px 20px 20px;border-bottom:1px solid rgba(255,255,255,.05)}
+.sb-logo img{width:140px;height:auto;display:block}
+.sb-nav{flex:1;padding:16px 0}
+.sb-item{display:flex;align-items:center;gap:12px;padding:12px 20px;cursor:pointer;color:var(--muted);font-family:'Share Tech Mono',monospace;font-size:12px;letter-spacing:.5px;transition:.2s;border-left:3px solid transparent;text-decoration:none}
+.sb-item:hover{color:var(--text);background:rgba(255,255,255,.03)}
+.sb-item.active{color:var(--nc);border-left-color:var(--nc);background:rgba(0,245,255,.05)}
+.sb-icon{font-size:16px;width:20px;text-align:center}
+.sb-footer{padding:16px 0;border-top:1px solid rgba(255,255,255,.05)}
+.sb-footer a{display:flex;align-items:center;gap:10px;padding:10px 20px;color:var(--muted);font-family:'Share Tech Mono',monospace;font-size:11px;text-decoration:none;transition:.2s}
+.sb-footer a:hover{color:var(--text)}
+
+/* MAIN */
+.main{margin-left:220px;flex:1;display:flex;flex-direction:column;min-height:100vh;position:relative;z-index:1}
+.topbar{background:rgba(7,7,26,.95);border-bottom:1px solid rgba(255,255,255,.06);padding:0 32px;height:58px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:50;backdrop-filter:blur(12px)}
+.page-title{font-family:'Share Tech Mono',monospace;font-size:14px;color:var(--nc);letter-spacing:2px;text-transform:uppercase}
+.topbar-right{display:flex;align-items:center;gap:12px}
+.badge-admin{background:rgba(191,90,242,.15);border:1px solid rgba(191,90,242,.4);color:var(--np);font-family:'Share Tech Mono',monospace;font-size:9px;letter-spacing:1.5px;padding:3px 10px;border-radius:4px}
+.topbar-user{font-family:'Share Tech Mono',monospace;font-size:11px;color:var(--muted)}
+.content{padding:28px 32px 60px}
+
+/* STAT CARDS */
+.stats-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:28px}
+.stat-card{background:var(--bg2);border:1px solid rgba(255,255,255,.07);border-radius:12px;padding:20px 22px}
+.stat-label{font-family:'Share Tech Mono',monospace;font-size:9px;color:var(--muted);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:8px}
+.stat-val{font-family:'Share Tech Mono',monospace;font-size:28px;font-weight:700;line-height:1}
+.stat-sub{font-size:11px;color:var(--muted);margin-top:4px}
+.c-nc{color:var(--nc)} .c-np{color:var(--np)} .c-ng{color:var(--ng)} .c-ny{color:var(--ny)} .c-nk{color:var(--nk)} .c-no{color:var(--no)}
+
+/* SECTION HEADER */
+.sec-hd{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px}
+.sec-title{font-family:'Share Tech Mono',monospace;font-size:13px;color:var(--nc);letter-spacing:2px;text-transform:uppercase}
+
+/* TABLES */
+.tbl-wrap{background:var(--bg2);border:1px solid rgba(255,255,255,.07);border-radius:12px;overflow:hidden}
+table{width:100%;border-collapse:collapse}
+thead tr{background:rgba(0,0,0,.4)}
+th{padding:11px 16px;font-family:'Share Tech Mono',monospace;font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;text-align:left;border-bottom:1px solid rgba(255,255,255,.06)}
+td{padding:12px 16px;font-size:12px;border-bottom:1px solid rgba(255,255,255,.04)}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:rgba(255,255,255,.015)}
+.badge{padding:2px 9px;border-radius:4px;font-family:'Share Tech Mono',monospace;font-size:9px;font-weight:700;letter-spacing:.8px}
+.badge-ok{background:rgba(57,255,20,.1);border:1px solid rgba(57,255,20,.3);color:var(--ng)}
+.badge-off{background:rgba(255,45,120,.08);border:1px solid rgba(255,45,120,.25);color:var(--nk)}
+.badge-admin-role{background:rgba(191,90,242,.1);border:1px solid rgba(191,90,242,.3);color:var(--np)}
+.badge-user-role{background:rgba(0,245,255,.07);border:1px solid rgba(0,245,255,.2);color:var(--nc)}
+
+/* BUTTONS */
+.btn{padding:9px 18px;border-radius:7px;font-family:'Share Tech Mono',monospace;font-size:11px;font-weight:700;letter-spacing:.8px;cursor:pointer;transition:.2s;border:1px solid}
+.btn-primary{background:rgba(0,245,255,.1);border-color:rgba(0,245,255,.4);color:var(--nc)}
+.btn-primary:hover{background:rgba(0,245,255,.18);border-color:var(--nc)}
+.btn-danger{background:rgba(255,45,120,.08);border-color:rgba(255,45,120,.35);color:var(--nk)}
+.btn-danger:hover{background:rgba(255,45,120,.15)}
+.btn-warn{background:rgba(255,214,10,.08);border-color:rgba(255,214,10,.3);color:var(--ny)}
+.btn-warn:hover{background:rgba(255,214,10,.15)}
+.btn-ok{background:rgba(57,255,20,.08);border-color:rgba(57,255,20,.3);color:var(--ng)}
+.btn-ok:hover{background:rgba(57,255,20,.15)}
+.btn-sm{padding:5px 12px;font-size:10px}
+.btn-icon{padding:5px 8px;font-size:13px}
+.action-btns{display:flex;gap:6px}
+
+/* FORM */
+.form-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:14px}
+.form-grid.col1{grid-template-columns:1fr}
+.fg-full{grid-column:1/-1}
+.f-label{font-family:'Share Tech Mono',monospace;font-size:9px;color:var(--muted);letter-spacing:1px;text-transform:uppercase;margin-bottom:5px;display:block}
+.f-input{width:100%;background:rgba(0,0,0,.5);border:1px solid rgba(255,255,255,.1);border-radius:7px;padding:10px 13px;font-size:13px;color:var(--text);font-family:'Segoe UI',sans-serif;outline:none;transition:.2s}
+.f-input:focus{border-color:var(--nc);box-shadow:0 0 0 2px rgba(0,245,255,.08)}
+textarea.f-input{resize:vertical;min-height:90px;line-height:1.5}
+select.f-input option{background:#0a0a1a}
+
+/* MODAL */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:500;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(4px)}
+.modal{background:var(--bg2);border:1px solid rgba(0,245,255,.2);border-radius:14px;padding:28px;width:100%;max-width:560px;max-height:90vh;overflow-y:auto;position:relative}
+.modal-title{font-family:'Share Tech Mono',monospace;font-size:13px;color:var(--nc);letter-spacing:2px;text-transform:uppercase;margin-bottom:22px}
+.modal-footer{display:flex;gap:10px;justify-content:flex-end;margin-top:22px;padding-top:18px;border-top:1px solid rgba(255,255,255,.06)}
+.modal-close{position:absolute;top:16px;right:16px;background:none;border:none;color:var(--muted);cursor:pointer;font-size:18px;padding:4px}
+.modal-close:hover{color:var(--nk)}
+
+/* FOTOS GRID */
+.fotos-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:10px;margin-bottom:16px}
+.foto-item{position:relative;border-radius:8px;overflow:hidden;border:1px solid rgba(255,255,255,.1);aspect-ratio:4/3}
+.foto-item img{width:100%;height:100%;object-fit:cover;display:block}
+.foto-del{position:absolute;top:4px;right:4px;background:rgba(255,45,120,.85);border:none;color:#fff;border-radius:4px;width:22px;height:22px;cursor:pointer;font-size:12px;display:flex;align-items:center;justify-content:center}
+.upload-zone{border:2px dashed rgba(0,245,255,.2);border-radius:10px;padding:24px;text-align:center;cursor:pointer;transition:.2s}
+.upload-zone:hover{border-color:rgba(0,245,255,.5);background:rgba(0,245,255,.03)}
+.upload-zone input{display:none}
+.upload-label{font-family:'Share Tech Mono',monospace;font-size:11px;color:var(--muted)}
+
+/* IMOVEIS CARDS */
+.im-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:16px}
+.im-card{background:var(--bg2);border:1px solid rgba(255,255,255,.08);border-radius:12px;overflow:hidden;transition:.2s}
+.im-card:hover{border-color:rgba(0,245,255,.3)}
+.im-card-img{width:100%;height:140px;object-fit:cover;display:block;background:rgba(0,245,255,.04)}
+.im-card-img-placeholder{width:100%;height:140px;display:flex;align-items:center;justify-content:center;font-size:40px;background:rgba(0,245,255,.03)}
+.im-card-body{padding:14px}
+.im-card-name{font-family:'Share Tech Mono',monospace;font-size:12px;color:var(--nc);font-weight:700;margin-bottom:6px}
+.im-card-end{font-size:11px;color:var(--muted);margin-bottom:12px;line-height:1.4}
+.im-card-actions{display:flex;gap:6px;flex-wrap:wrap}
+
+/* FUNIL */
+.funil-item{background:rgba(0,0,0,.25);border:1px solid rgba(255,255,255,.07);border-radius:10px;padding:16px;margin-bottom:12px}
+.funil-num{width:28px;height:28px;border-radius:50%;background:rgba(0,245,255,.15);border:1px solid rgba(0,245,255,.3);color:var(--nc);font-family:'Share Tech Mono',monospace;font-size:12px;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-bottom:10px}
+
+/* ADS CONFIG */
+.ads-group{margin-bottom:20px}
+.ads-group-title{font-family:'Share Tech Mono',monospace;font-size:9px;color:rgba(0,245,255,.4);letter-spacing:2px;text-transform:uppercase;margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid rgba(255,255,255,.05)}
+.ads-row{display:flex;align-items:center;gap:12px;margin-bottom:10px}
+.ads-row-label{font-size:11px;color:var(--muted);min-width:200px;flex-shrink:0}
+
+/* LOGS */
+.log-filters{display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap}
+.log-filters .f-input{max-width:180px}
+.log-acao{font-family:'Share Tech Mono',monospace;font-size:10px;padding:2px 8px;border-radius:4px;background:rgba(0,245,255,.07);border:1px solid rgba(0,245,255,.15);color:var(--nc)}
+.pagination{display:flex;align-items:center;gap:10px;margin-top:16px;font-family:'Share Tech Mono',monospace;font-size:11px;color:var(--muted)}
+
+/* TOAST */
+.toast{position:fixed;bottom:28px;right:28px;z-index:1000;background:var(--bg2);border:1px solid rgba(57,255,20,.4);border-radius:10px;padding:14px 20px;font-family:'Share Tech Mono',monospace;font-size:12px;color:var(--ng);box-shadow:0 0 20px rgba(57,255,20,.15);transform:translateY(80px);opacity:0;transition:.3s;pointer-events:none}
+.toast.show{transform:translateY(0);opacity:1}
+.toast.error{border-color:rgba(255,45,120,.4);color:var(--nk);box-shadow:0 0 20px rgba(255,45,120,.15)}
+
+/* SECTION HIDDEN */
+.section{display:none}
+.section.active{display:block}
+
+/* RESPONSIVE */
+@media(max-width:860px){
+  .sidebar{width:60px}.sb-item span{display:none}.sb-logo img{width:36px}
+  .main{margin-left:60px}.content{padding:16px}.stats-grid{grid-template-columns:repeat(2,1fr)}
+  .form-grid{grid-template-columns:1fr}.im-grid{grid-template-columns:1fr}
+}
+</style>
+</head>
+<body>
+
+<aside class="sidebar">
+  <div class="sb-logo"><img src="/logo" alt="LITORANO"></div>
+  <nav class="sb-nav">
+    <a class="sb-item active" onclick="showSection('dashboard')"><span class="sb-icon">⬡</span><span>Dashboard</span></a>
+    <a class="sb-item" onclick="showSection('users')"><span class="sb-icon">👤</span><span>Usuários</span></a>
+    <a class="sb-item" onclick="showSection('imoveis')"><span class="sb-icon">🏠</span><span>Imóveis</span></a>
+    <a class="sb-item" onclick="showSection('config')"><span class="sb-icon">⚙️</span><span>Configurações</span></a>
+    <a class="sb-item" onclick="showSection('logs')"><span class="sb-icon">📋</span><span>Logs</span></a>
+  </nav>
+  <div class="sb-footer">
+    <a href="/"><span>←</span><span>Voltar ao App</span></a>
+    <a href="/logout"><span>⏻</span><span>Sair</span></a>
+  </div>
+</aside>
+
+<div class="main">
+  <div class="topbar">
+    <div class="page-title" id="page-title">Dashboard</div>
+    <div class="topbar-right">
+      <span class="badge-admin">ADMIN</span>
+      <span class="topbar-user" id="topbar-user"></span>
+    </div>
+  </div>
+
+  <div class="content">
+
+    <!-- DASHBOARD -->
+    <div id="section-dashboard" class="section active">
+      <div class="stats-grid" id="stats-grid">
+        <div class="stat-card"><div class="stat-label">Imóveis Ativos</div><div class="stat-val c-nc" id="s-im-at">—</div></div>
+        <div class="stat-card"><div class="stat-label">Total Imóveis</div><div class="stat-val c-np" id="s-im-tot">—</div></div>
+        <div class="stat-card"><div class="stat-label">Usuários Ativos</div><div class="stat-val c-ng" id="s-us-at">—</div></div>
+        <div class="stat-card"><div class="stat-label">Total Usuários</div><div class="stat-val c-ny" id="s-us-tot">—</div></div>
+        <div class="stat-card"><div class="stat-label">Logs Hoje</div><div class="stat-val c-no" id="s-log-hj">—</div></div>
+        <div class="stat-card"><div class="stat-label">Total Logs</div><div class="stat-val c-nk" id="s-log-tot">—</div></div>
+      </div>
+      <div class="sec-hd"><div class="sec-title">📋 Atividade Recente</div></div>
+      <div class="tbl-wrap">
+        <table><thead><tr><th>Data/Hora</th><th>Usuário</th><th>Ação</th><th>Detalhes</th></tr></thead>
+        <tbody id="dash-logs"></tbody></table>
+      </div>
+    </div>
+
+    <!-- USUÁRIOS -->
+    <div id="section-users" class="section">
+      <div class="sec-hd">
+        <div class="sec-title">👤 Usuários</div>
+        <button class="btn btn-primary" onclick="openModalUser()">+ Novo Usuário</button>
+      </div>
+      <div class="tbl-wrap">
+        <table><thead><tr><th>ID</th><th>Login</th><th>Role</th><th>Status</th><th>Último Login</th><th>Ações</th></tr></thead>
+        <tbody id="users-tbody"></tbody></table>
+      </div>
+    </div>
+
+    <!-- IMÓVEIS -->
+    <div id="section-imoveis" class="section">
+      <div class="sec-hd">
+        <div class="sec-title">🏠 Imóveis</div>
+        <button class="btn btn-primary" onclick="openModalImovel()">+ Novo Imóvel</button>
+      </div>
+      <div id="imoveis-grid-admin" class="im-grid"></div>
+    </div>
+
+    <!-- CONFIGURAÇÕES -->
+    <div id="section-config" class="section">
+      <div class="sec-hd"><div class="sec-title">⚙️ Configurações</div></div>
+      <div style="display:flex;gap:10px;margin-bottom:20px">
+        <button class="btn btn-primary" id="tab-ads" onclick="showTab('ads')">📱 Config Meta Ads</button>
+        <button class="btn" id="tab-funil" style="border-color:rgba(255,255,255,.15);color:var(--muted)" onclick="showTab('funil')">💬 Funil WhatsApp</button>
+      </div>
+      <div id="cfg-ads">
+        <div style="background:var(--bg2);border:1px solid rgba(255,255,255,.07);border-radius:12px;padding:24px">
+          <div id="ads-form"></div>
+          <div style="margin-top:20px"><button class="btn btn-ok" onclick="salvarAds()">✔ Salvar Anúncios</button></div>
+        </div>
+      </div>
+      <div id="cfg-funil" style="display:none">
+        <div style="background:var(--bg2);border:1px solid rgba(255,255,255,.07);border-radius:12px;padding:24px">
+          <div id="funil-form"></div>
+          <div style="margin-top:20px"><button class="btn btn-ok" onclick="salvarFunil()">✔ Salvar Funil</button></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- LOGS -->
+    <div id="section-logs" class="section">
+      <div class="sec-hd"><div class="sec-title">📋 Logs de Atividade</div></div>
+      <div class="log-filters">
+        <select class="f-input" id="log-filter-acao" onchange="loadLogs(1)">
+          <option value="">Todas as ações</option>
+          <option>login</option><option>logout</option><option>gerar_iptu</option>
+          <option>gerar_luz</option><option>admin_criar_user</option><option>admin_criar_imovel</option>
+          <option>migrate_from_files</option>
+        </select>
+        <button class="btn btn-primary btn-sm" onclick="loadLogs(1)">Filtrar</button>
+      </div>
+      <div class="tbl-wrap">
+        <table><thead><tr><th>Data/Hora</th><th>Usuário</th><th>Ação</th><th>Detalhes</th><th>IP</th></tr></thead>
+        <tbody id="logs-tbody"></tbody></table>
+      </div>
+      <div class="pagination">
+        <button class="btn btn-sm" id="log-prev" onclick="logsPage--; loadLogs(logsPage)">‹ Anterior</button>
+        <span id="log-info"></span>
+        <button class="btn btn-sm" id="log-next" onclick="logsPage++; loadLogs(logsPage)">Próximo ›</button>
+      </div>
+    </div>
+
+  </div><!-- /content -->
+</div><!-- /main -->
+
+<!-- MODAL USUÁRIO -->
+<div class="modal-overlay" id="modal-user" style="display:none" onclick="if(event.target===this)closeModal('modal-user')">
+  <div class="modal">
+    <button class="modal-close" onclick="closeModal('modal-user')">✕</button>
+    <div class="modal-title" id="mu-title">Novo Usuário</div>
+    <input type="hidden" id="mu-id">
+    <div class="form-grid col1" style="gap:12px">
+      <div><label class="f-label">Login</label><input class="f-input" id="mu-username" placeholder="nome de usuário"></div>
+      <div id="mu-senha-wrap"><label class="f-label">Senha</label><input class="f-input" type="password" id="mu-senha" placeholder="mínimo 6 caracteres"></div>
+      <div><label class="f-label">Role</label>
+        <select class="f-input" id="mu-role">
+          <option value="user">Funcionário (user)</option>
+          <option value="admin">Administrador (admin)</option>
+        </select>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeModal('modal-user')" style="border-color:rgba(255,255,255,.1);color:var(--muted)">Cancelar</button>
+      <button class="btn btn-primary" onclick="saveUser()">Salvar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL TROCAR SENHA -->
+<div class="modal-overlay" id="modal-senha" style="display:none" onclick="if(event.target===this)closeModal('modal-senha')">
+  <div class="modal" style="max-width:380px">
+    <button class="modal-close" onclick="closeModal('modal-senha')">✕</button>
+    <div class="modal-title">Trocar Senha</div>
+    <input type="hidden" id="ms-id">
+    <div style="gap:12px;display:flex;flex-direction:column">
+      <div><label class="f-label">Nova Senha</label><input class="f-input" type="password" id="ms-senha"></div>
+      <div><label class="f-label">Confirmar</label><input class="f-input" type="password" id="ms-confirm"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeModal('modal-senha')" style="border-color:rgba(255,255,255,.1);color:var(--muted)">Cancelar</button>
+      <button class="btn btn-primary" onclick="saveSenha()">Confirmar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL IMÓVEL -->
+<div class="modal-overlay" id="modal-imovel" style="display:none" onclick="if(event.target===this)closeModal('modal-imovel')">
+  <div class="modal" style="max-width:680px">
+    <button class="modal-close" onclick="closeModal('modal-imovel')">✕</button>
+    <div class="modal-title" id="mi-title">Novo Imóvel</div>
+    <input type="hidden" id="mi-id">
+    <div class="form-grid">
+      <div class="fg-full"><label class="f-label">Nome *</label><input class="f-input" id="mi-nome" placeholder="Nome do imóvel"></div>
+      <div class="fg-full"><label class="f-label">Endereço</label><input class="f-input" id="mi-end" placeholder="Rua, número, bairro"></div>
+      <div><label class="f-label">CEP</label><input class="f-input" id="mi-cep" placeholder="00000-000"></div>
+      <div><label class="f-label">Cidade</label><input class="f-input" id="mi-cidade" value="Ubatuba"></div>
+      <div><label class="f-label">Estado</label><input class="f-input" id="mi-estado" value="SP" maxlength="2"></div>
+      <div><label class="f-label">Código do Imóvel</label><input class="f-input" id="mi-cod" placeholder="ex: 9512345678"></div>
+      <div><label class="f-label">Quartos</label><input class="f-input" id="mi-quartos" type="number" min="0"></div>
+      <div><label class="f-label">Banheiros</label><input class="f-input" id="mi-banheiros" type="number" min="0"></div>
+      <div><label class="f-label">Área (m²)</label><input class="f-input" id="mi-area" type="number" min="0"></div>
+      <div><label class="f-label">Mobiliado</label>
+        <select class="f-input" id="mi-mob"><option>Sim</option><option>Não</option></select>
+      </div>
+      <div><label class="f-label">Destaque 1</label><input class="f-input" id="mi-d1" placeholder="ex: 100m da praia"></div>
+      <div><label class="f-label">Destaque 2</label><input class="f-input" id="mi-d2" placeholder="ex: Piscina privativa"></div>
+      <div><label class="f-label">Destaque 3</label><input class="f-input" id="mi-d3" placeholder="ex: Garagem coberta"></div>
+      <div class="fg-full"><label class="f-label">Descrição</label><textarea class="f-input" id="mi-desc" rows="3"></textarea></div>
+      <div class="fg-full"><label class="f-label">Copy do Anúncio</label><textarea class="f-input" id="mi-copy" rows="4"></textarea></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeModal('modal-imovel')" style="border-color:rgba(255,255,255,.1);color:var(--muted)">Cancelar</button>
+      <button class="btn btn-primary" onclick="saveImovel()">Salvar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL FOTOS -->
+<div class="modal-overlay" id="modal-fotos" style="display:none" onclick="if(event.target===this)closeModal('modal-fotos')">
+  <div class="modal" style="max-width:620px">
+    <button class="modal-close" onclick="closeModal('modal-fotos')">✕</button>
+    <div class="modal-title">📸 Fotos do Imóvel</div>
+    <input type="hidden" id="mf-iid">
+    <div id="fotos-grid-modal" class="fotos-grid"></div>
+    <div class="upload-zone" onclick="document.getElementById('upload-input').click()">
+      <input type="file" id="upload-input" multiple accept="image/*" onchange="uploadFotos(this)">
+      <div style="font-size:28px;margin-bottom:8px">📁</div>
+      <div class="upload-label">Clique para selecionar fotos<br><span style="color:var(--nc)">JPG, PNG — múltiplos arquivos</span></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-primary" onclick="closeModal('modal-fotos')">Fechar</button>
+    </div>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div class="toast" id="toast"></div>
+
+<script>
+// ── Estado ──────────────────────────────────────────────────────────────────
+let currentSection = 'dashboard';
+let logsPage = 1;
+let adsData = {};
+let funilData = [];
+
+// ── Init ─────────────────────────────────────────────────────────────────────
+fetch('/api/me').then(r=>r.json()).then(d=>{ document.getElementById('topbar-user').textContent = d.username || ''; });
+showSection('dashboard');
+
+// ── Navegação ────────────────────────────────────────────────────────────────
+function showSection(name) {
+  document.querySelectorAll('.section').forEach(s=>s.classList.remove('active'));
+  document.querySelectorAll('.sb-item').forEach(i=>i.classList.remove('active'));
+  document.getElementById('section-'+name).classList.add('active');
+  document.querySelectorAll('.sb-item')[['dashboard','users','imoveis','config','logs'].indexOf(name)]?.classList.add('active');
+  const titles = {dashboard:'Dashboard',users:'Usuários',imoveis:'Imóveis',config:'Configurações',logs:'Logs'};
+  document.getElementById('page-title').textContent = titles[name] || name;
+  currentSection = name;
+  if(name==='dashboard') loadDashboard();
+  if(name==='users') loadUsers();
+  if(name==='imoveis') loadImoveis();
+  if(name==='config') loadConfig();
+  if(name==='logs') loadLogs(1);
+}
+
+function showTab(tab) {
+  document.getElementById('cfg-ads').style.display = tab==='ads' ? '' : 'none';
+  document.getElementById('cfg-funil').style.display = tab==='funil' ? '' : 'none';
+  document.getElementById('tab-ads').className = 'btn ' + (tab==='ads' ? 'btn-primary' : '');
+  if(tab!=='ads') document.getElementById('tab-ads').style = 'border-color:rgba(255,255,255,.15);color:var(--muted)';
+  else document.getElementById('tab-ads').style = '';
+  document.getElementById('tab-funil').className = 'btn ' + (tab==='funil' ? 'btn-primary' : '');
+  if(tab!=='funil') document.getElementById('tab-funil').style = 'border-color:rgba(255,255,255,.15);color:var(--muted)';
+  else document.getElementById('tab-funil').style = '';
+}
+
+// ── API helper ────────────────────────────────────────────────────────────────
+async function api(url, method='GET', body=null) {
+  const opts = {method, headers:{}};
+  if(body) { opts.headers['Content-Type']='application/json'; opts.body=JSON.stringify(body); }
+  const r = await fetch(url, opts);
+  return r.json();
+}
+
+function toast(msg, err=false) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className = 'toast' + (err ? ' error' : '') + ' show';
+  setTimeout(()=>el.classList.remove('show'), 3000);
+}
+
+function closeModal(id) { document.getElementById(id).style.display='none'; }
+function openModal(id) { document.getElementById(id).style.display='flex'; }
+document.addEventListener('keydown', e=>{ if(e.key==='Escape') document.querySelectorAll('.modal-overlay').forEach(m=>m.style.display='none'); });
+
+// ── DASHBOARD ─────────────────────────────────────────────────────────────────
+async function loadDashboard() {
+  const d = await api('/admin/api/stats');
+  document.getElementById('s-im-at').textContent  = d.stats.imoveis_ativos;
+  document.getElementById('s-im-tot').textContent = d.stats.total_imoveis;
+  document.getElementById('s-us-at').textContent  = d.stats.users_ativos;
+  document.getElementById('s-us-tot').textContent = d.stats.total_users;
+  document.getElementById('s-log-hj').textContent = d.stats.logs_hoje;
+  document.getElementById('s-log-tot').textContent= d.stats.logs_total;
+  document.getElementById('dash-logs').innerHTML = d.logs.map(l=>`
+    <tr>
+      <td style="font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--muted)">${l.criado_em||''}</td>
+      <td style="font-size:11px">${l.user_nome||'—'}</td>
+      <td><span class="log-acao">${l.acao||''}</span></td>
+      <td style="font-size:10px;color:var(--muted);max-width:200px;overflow:hidden;text-overflow:ellipsis">${l.detalhes||''}</td>
+    </tr>`).join('');
+}
+
+// ── USUÁRIOS ──────────────────────────────────────────────────────────────────
+async function loadUsers() {
+  const rows = await api('/admin/api/users');
+  document.getElementById('users-tbody').innerHTML = rows.map(u=>`
+    <tr>
+      <td style="color:var(--muted);font-size:11px">${u.id}</td>
+      <td><strong style="font-family:'Share Tech Mono',monospace;font-size:12px">${u.username}</strong></td>
+      <td><span class="badge ${u.role==='admin'?'badge-admin-role':'badge-user-role'}">${u.role}</span></td>
+      <td><span class="badge ${u.ativo?'badge-ok':'badge-off'}">${u.ativo?'ATIVO':'INATIVO'}</span></td>
+      <td style="font-size:11px;color:var(--muted)">${u.ultimo_login||'—'}</td>
+      <td>
+        <div class="action-btns">
+          <button class="btn btn-warn btn-sm btn-icon" onclick="openModalEditUser(${JSON.stringify(JSON.stringify(u))})" title="Editar">✏️</button>
+          <button class="btn btn-sm btn-icon" onclick="openModalSenha(${u.id})" title="Trocar senha" style="border-color:rgba(0,245,255,.3);color:var(--nc)">🔑</button>
+          <button class="btn ${u.ativo?'btn-danger':'btn-ok'} btn-sm" onclick="toggleUser(${u.id})">${u.ativo?'Desativar':'Ativar'}</button>
+          <button class="btn btn-danger btn-sm btn-icon" onclick="deleteUser(${u.id},'${u.username}')" title="Excluir">🗑</button>
+        </div>
+      </td>
+    </tr>`).join('');
+}
+
+function openModalUser() {
+  document.getElementById('mu-id').value='';
+  document.getElementById('mu-title').textContent='Novo Usuário';
+  document.getElementById('mu-username').value='';
+  document.getElementById('mu-senha').value='';
+  document.getElementById('mu-role').value='user';
+  document.getElementById('mu-senha-wrap').style.display='';
+  openModal('modal-user');
+}
+
+function openModalEditUser(json) {
+  const u = JSON.parse(json);
+  document.getElementById('mu-id').value=u.id;
+  document.getElementById('mu-title').textContent='Editar Usuário';
+  document.getElementById('mu-username').value=u.username;
+  document.getElementById('mu-role').value=u.role;
+  document.getElementById('mu-senha-wrap').style.display='none';
+  openModal('modal-user');
+}
+
+async function saveUser() {
+  const id = document.getElementById('mu-id').value;
+  const body = {username:document.getElementById('mu-username').value, role:document.getElementById('mu-role').value};
+  if(!id) body.senha = document.getElementById('mu-senha').value;
+  const url = id ? `/admin/api/users/${id}` : '/admin/api/users';
+  const method = id ? 'PUT' : 'POST';
+  const d = await api(url, method, body);
+  if(d.error) { toast(d.error, true); return; }
+  toast('Usuário salvo!'); closeModal('modal-user'); loadUsers();
+}
+
+function openModalSenha(id) {
+  document.getElementById('ms-id').value=id;
+  document.getElementById('ms-senha').value='';
+  document.getElementById('ms-confirm').value='';
+  openModal('modal-senha');
+}
+
+async function saveSenha() {
+  const id = document.getElementById('ms-id').value;
+  const s = document.getElementById('ms-senha').value;
+  const c = document.getElementById('ms-confirm').value;
+  if(s !== c) { toast('Senhas não coincidem', true); return; }
+  const d = await api(`/admin/api/users/${id}/senha`, 'PUT', {senha:s});
+  if(d.error) { toast(d.error, true); return; }
+  toast('Senha alterada!'); closeModal('modal-senha');
+}
+
+async function toggleUser(id) {
+  const d = await api(`/admin/api/users/${id}/toggle`, 'PUT');
+  if(d.error) { toast(d.error, true); return; }
+  toast('Status atualizado!'); loadUsers();
+}
+
+async function deleteUser(id, name) {
+  if(!confirm(`Excluir usuário "${name}"?`)) return;
+  const d = await api(`/admin/api/users/${id}`, 'DELETE');
+  if(d.error) { toast(d.error, true); return; }
+  toast('Usuário excluído!'); loadUsers();
+}
+
+// ── IMÓVEIS ───────────────────────────────────────────────────────────────────
+async function loadImoveis() {
+  const rows = await api('/admin/api/imoveis');
+  document.getElementById('imoveis-grid-admin').innerHTML = rows.map(im=>{
+    const fotoUrl = im.foto_id ? `/api/foto/${im.foto_id}` : null;
+    return `<div class="im-card">
+      ${fotoUrl ? `<img class="im-card-img" src="${fotoUrl}" alt="">` : '<div class="im-card-img-placeholder">🏠</div>'}
+      <div class="im-card-body">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+          <div class="im-card-name">${im.nome}</div>
+          <span class="badge ${im.ativo?'badge-ok':'badge-off'}" style="font-size:8px">${im.ativo?'ATIVO':'INATIVO'}</span>
+        </div>
+        <div class="im-card-end">${im.endereco||''}</div>
+        <div class="im-card-actions">
+          <button class="btn btn-warn btn-sm" onclick="openModalEditImovel(${im.id})">✏️ Editar</button>
+          <button class="btn btn-sm" onclick="openModalFotos(${im.id})" style="border-color:rgba(0,245,255,.3);color:var(--nc)">📸 Fotos</button>
+          <button class="btn ${im.ativo?'btn-danger':'btn-ok'} btn-sm" onclick="toggleImovel(${im.id})">${im.ativo?'Desativar':'Ativar'}</button>
+          <button class="btn btn-danger btn-sm btn-icon" onclick="deleteImovel(${im.id},'${im.nome.replace(/'/g,"\\'")}')">🗑</button>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function openModalImovel() {
+  document.getElementById('mi-id').value='';
+  document.getElementById('mi-title').textContent='Novo Imóvel';
+  ['nome','end','cep','cod','quartos','banheiros','area','desc','copy','d1','d2','d3'].forEach(f=>{
+    const el = document.getElementById('mi-'+f); if(el) el.value='';
+  });
+  document.getElementById('mi-cidade').value='Ubatuba';
+  document.getElementById('mi-estado').value='SP';
+  document.getElementById('mi-mob').value='Sim';
+  openModal('modal-imovel');
+}
+
+async function openModalEditImovel(id) {
+  const im = await api(`/admin/api/imoveis/${id}`);
+  document.getElementById('mi-id').value=im.id;
+  document.getElementById('mi-title').textContent='Editar Imóvel';
+  document.getElementById('mi-nome').value=im.nome||'';
+  document.getElementById('mi-end').value=im.endereco||'';
+  document.getElementById('mi-cep').value=im.cep||'';
+  document.getElementById('mi-cidade').value=im.cidade||'Ubatuba';
+  document.getElementById('mi-estado').value=im.estado||'SP';
+  document.getElementById('mi-cod').value=im.cod_imovel||'';
+  document.getElementById('mi-quartos').value=im.quartos||'';
+  document.getElementById('mi-banheiros').value=im.banheiros||'';
+  document.getElementById('mi-area').value=im.area||'';
+  document.getElementById('mi-mob').value=im.mobiliado||'Sim';
+  document.getElementById('mi-d1').value=im.destaque1||'';
+  document.getElementById('mi-d2').value=im.destaque2||'';
+  document.getElementById('mi-d3').value=im.destaque3||'';
+  document.getElementById('mi-desc').value=im.descricao||'';
+  document.getElementById('mi-copy').value=im.copy_txt||'';
+  openModal('modal-imovel');
+}
+
+async function saveImovel() {
+  const id = document.getElementById('mi-id').value;
+  const body = {
+    nome:       document.getElementById('mi-nome').value,
+    endereco:   document.getElementById('mi-end').value,
+    cep:        document.getElementById('mi-cep').value,
+    cidade:     document.getElementById('mi-cidade').value,
+    estado:     document.getElementById('mi-estado').value,
+    cod_imovel: document.getElementById('mi-cod').value,
+    quartos:    document.getElementById('mi-quartos').value,
+    banheiros:  document.getElementById('mi-banheiros').value,
+    area:       document.getElementById('mi-area').value,
+    mobiliado:  document.getElementById('mi-mob').value,
+    destaque1:  document.getElementById('mi-d1').value,
+    destaque2:  document.getElementById('mi-d2').value,
+    destaque3:  document.getElementById('mi-d3').value,
+    descricao:  document.getElementById('mi-desc').value,
+    copy_txt:   document.getElementById('mi-copy').value,
+  };
+  const url = id ? `/admin/api/imoveis/${id}` : '/admin/api/imoveis';
+  const method = id ? 'PUT' : 'POST';
+  const d = await api(url, method, body);
+  if(d.error) { toast(d.error, true); return; }
+  toast('Imóvel salvo!'); closeModal('modal-imovel'); loadImoveis();
+}
+
+async function toggleImovel(id) {
+  const d = await api(`/admin/api/imoveis/${id}/toggle`, 'PUT');
+  if(d.error) { toast(d.error, true); return; }
+  toast('Status atualizado!'); loadImoveis();
+}
+
+async function deleteImovel(id, name) {
+  if(!confirm(`Excluir imóvel "${name}" e todas as fotos?`)) return;
+  const d = await api(`/admin/api/imoveis/${id}`, 'DELETE');
+  if(d.error) { toast(d.error, true); return; }
+  toast('Imóvel excluído!'); loadImoveis();
+}
+
+// ── FOTOS ─────────────────────────────────────────────────────────────────────
+async function openModalFotos(iid) {
+  document.getElementById('mf-iid').value = iid;
+  await renderFotos(iid);
+  openModal('modal-fotos');
+}
+
+async function renderFotos(iid) {
+  const fotos = await api(`/admin/api/imoveis/${iid}/fotos`);
+  document.getElementById('fotos-grid-modal').innerHTML = fotos.map(f=>`
+    <div class="foto-item" id="foto-${f.id}">
+      <img src="/api/foto/${f.id}" alt="${f.nome_orig}">
+      <button class="foto-del" onclick="deleteFoto(${f.id},${iid})">✕</button>
+    </div>`).join('');
+}
+
+async function deleteFoto(fid, iid) {
+  if(!confirm('Excluir esta foto?')) return;
+  await api(`/admin/api/fotos/${fid}`, 'DELETE');
+  renderFotos(iid); toast('Foto excluída!');
+}
+
+async function uploadFotos(input) {
+  const iid = document.getElementById('mf-iid').value;
+  const formData = new FormData();
+  for(const f of input.files) formData.append('fotos', f);
+  const r = await fetch(`/admin/api/imoveis/${iid}/fotos`, {method:'POST', body:formData});
+  const d = await r.json();
+  if(d.error) { toast(d.error, true); return; }
+  toast(`${d.count} foto(s) enviada(s)!`);
+  input.value='';
+  renderFotos(iid); loadImoveis();
+}
+
+// ── CONFIG ────────────────────────────────────────────────────────────────────
+const ADS_CAMPOS = [
+  {group:'Campanha', items:[
+    {key:'ads_tipo', label:'Tipo de campanha'},
+    {key:'ads_orcamento_estrategia', label:'Estratégia de orçamento'},
+    {key:'ads_orcamento', label:'Orçamento'},
+    {key:'ads_lances', label:'Estratégia de lances'},
+    {key:'ads_destino', label:'Destino das mensagens'},
+    {key:'ads_meta', label:'Meta de desempenho'},
+    {key:'ads_duracao', label:'Duração'},
+  ]},
+  {group:'Público', items:[
+    {key:'ads_localizacoes', label:'Localizações'},
+    {key:'ads_idade_min', label:'Idade mínima'},
+    {key:'ads_publico', label:'Público Advantage+'},
+  ]},
+  {group:'Posicionamentos', items:[
+    {key:'ads_posicionamentos', label:'Posicionamentos manuais'},
+    {key:'ads_posicoes', label:'Posições ativas'},
+    {key:'ads_parceria', label:'Anúncio em parceria'},
+  ]},
+  {group:'Criativo', items:[
+    {key:'ads_formato', label:'Formato'},
+    {key:'ads_criativo', label:'Criativo Advantage+'},
+    {key:'ads_aprimoramentos', label:'Aprimoramentos'},
+    {key:'ads_varios_anunciantes', label:'Anúncio com vários anunciantes'},
+  ]},
+];
+
+async function loadConfig() {
+  adsData = await api('/admin/api/config');
+  funilData = await api('/admin/api/funil');
+  renderAdsForm();
+  renderFunilForm();
+}
+
+function renderAdsForm() {
+  document.getElementById('ads-form').innerHTML = ADS_CAMPOS.map(g=>`
+    <div class="ads-group">
+      <div class="ads-group-title">${g.group}</div>
+      ${g.items.map(item=>`
+        <div class="ads-row">
+          <div class="ads-row-label">${item.label}</div>
+          <input class="f-input" data-key="${item.key}" value="${(adsData[item.key]||'').replace(/"/g,'&quot;')}" style="flex:1">
+        </div>`).join('')}
+    </div>`).join('');
+}
+
+async function salvarAds() {
+  const body = {};
+  document.querySelectorAll('#ads-form [data-key]').forEach(el=>{ body[el.dataset.key]=el.value; });
+  const d = await api('/admin/api/config', 'PUT', body);
+  if(d.error) { toast(d.error, true); return; }
+  toast('✔ Configurações de anúncios salvas!');
+}
+
+function renderFunilForm() {
+  document.getElementById('funil-form').innerHTML = funilData.map(f=>`
+    <div class="funil-item" id="funil-item-${f.id}">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+        <div class="funil-num">${f.ordem}</div>
+        <div style="flex:1;font-family:'Share Tech Mono',monospace;font-size:11px;color:var(--muted)">Passo ${f.ordem}</div>
+        <label style="display:flex;align-items:center;gap:6px;font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--muted);cursor:pointer">
+          <input type="checkbox" data-fid="${f.id}" data-field="ativo" ${f.ativo?'checked':''} onchange="funilChange(${f.id},'ativo',this.checked?1:0)">
+          Ativo
+        </label>
+      </div>
+      <div style="margin-bottom:8px">
+        <label class="f-label">Label</label>
+        <input class="f-input" data-fid="${f.id}" data-field="label" value="${(f.label||'').replace(/"/g,'&quot;')}" style="font-size:12px">
+      </div>
+      <div>
+        <label class="f-label">Mensagem (HTML permitido)</label>
+        <textarea class="f-input" data-fid="${f.id}" data-field="mensagem" rows="3" style="font-size:12px">${f.mensagem||''}</textarea>
+      </div>
+    </div>`).join('');
+}
+
+function funilChange(id, field, val) {
+  const item = funilData.find(f=>f.id===id);
+  if(item) item[field] = val;
+}
+
+async function salvarFunil() {
+  // Collect current values from form
+  const items = funilData.map(f=>{
+    const labelEl = document.querySelector(`[data-fid="${f.id}"][data-field="label"]`);
+    const msgEl = document.querySelector(`[data-fid="${f.id}"][data-field="mensagem"]`);
+    const ativoEl = document.querySelector(`[data-fid="${f.id}"][data-field="ativo"]`);
+    return {
+      id: f.id,
+      label: labelEl ? labelEl.value : f.label,
+      mensagem: msgEl ? msgEl.value : f.mensagem,
+      ativo: ativoEl ? (ativoEl.checked ? 1 : 0) : f.ativo,
+    };
+  });
+  const d = await api('/admin/api/funil', 'PUT', items);
+  if(d.error) { toast(d.error, true); return; }
+  toast('✔ Funil salvo!');
+}
+
+// ── LOGS ──────────────────────────────────────────────────────────────────────
+async function loadLogs(page) {
+  logsPage = page;
+  const acao = document.getElementById('log-filter-acao').value;
+  const params = new URLSearchParams({page, per_page:50, acao});
+  const d = await api(`/admin/api/logs?${params}`);
+  document.getElementById('logs-tbody').innerHTML = d.items.map(l=>`
+    <tr>
+      <td style="font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--muted);white-space:nowrap">${l.criado_em||''}</td>
+      <td style="font-size:11px">${l.user_nome||'—'}</td>
+      <td><span class="log-acao">${l.acao||''}</span></td>
+      <td style="font-size:10px;color:var(--muted);max-width:220px;word-break:break-all">${l.detalhes||''}</td>
+      <td style="font-size:10px;color:var(--muted)">${l.ip||''}</td>
+    </tr>`).join('');
+  document.getElementById('log-info').textContent = `Página ${d.page} de ${d.pages} (${d.total} registros)`;
+  document.getElementById('log-prev').disabled = page <= 1;
+  document.getElementById('log-next').disabled = page >= d.pages;
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,13 @@
+Nome: Casa Toninhas 2 - Piscina Privativa
+Endereco: R. Engenheiro G. Montesanti, 39 - Toninhas, Ubatuba - SP, 11680-000
+Cidade: Ubatuba
+Estado: SP
+Cod_Imovel: 9512345676
+Quartos: 3
+Banheiros: 2
+Area: 120
+Mobiliado: Sim
+Destaque_1: 100m da praia
+Destaque_2: Piscina privativa
+Destaque_3: Garagem coberta
+Descricao: Linda casa com acabamento premium, totalmente mobiliada, piscina privativa, cozinha equipada, ar-condicionado em todos os quartos. Ideal para temporada em familia.
