@@ -607,7 +607,7 @@ async function deleteUser(id, name) {
 async function loadImoveis() {
   const rows = await api('/admin/api/imoveis');
   document.getElementById('imoveis-grid-admin').innerHTML = rows.map(im=>{
-    const fotoUrl = im.foto_id ? `/api/foto/${im.foto_id}` : null;
+    const fotoUrl = im.foto_nome ? `/api/foto/fs/${encodeURIComponent(im.slug)}/${encodeURIComponent(im.foto_nome)}` : null;
     const precoInfo = (im.preco_baixa||im.preco_alta) ?
       `<div style="font-size:10px;color:var(--ny);margin-bottom:8px">`+
       (im.preco_baixa?`<span>Baixa: R$${im.preco_baixa}</span> `:'')+

@@ -512,12 +512,19 @@ def _slug(nome):
 @app.route('/admin/api/imoveis', methods=['GET'])
 def admin_imoveis_list():
     conn = get_db()
-    rows = conn.execute('''
-        SELECT i.*, (SELECT f.id FROM fotos f WHERE f.imovel_id=i.id ORDER BY f.ordem LIMIT 1) as foto_id
-        FROM imoveis i ORDER BY i.nome
-    ''').fetchall()
+    rows = conn.execute('SELECT * FROM imoveis ORDER BY nome').fetchall()
+    fotos = conn.execute('SELECT imovel_id, nome_orig FROM fotos ORDER BY imovel_id, ordem').fetchall()
     conn.close()
-    return jsonify([dict(r) for r in rows])
+    fotos_map = {}
+    for f in fotos:
+        if f['imovel_id'] not in fotos_map:
+            fotos_map[f['imovel_id']] = f['nome_orig']
+    result = []
+    for r in rows:
+        d = dict(r)
+        d['foto_nome'] = fotos_map.get(r['id'])
+        result.append(d)
+    return jsonify(result)
 
 @app.route('/admin/api/imoveis', methods=['POST'])
 def admin_imoveis_create():
