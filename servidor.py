@@ -18,7 +18,7 @@ app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024
 
 # ─── AUTH ─────────────────────────────────────────────────────────────────────
 
-PUBLIC = {'login', 'logo', 'static', 'api_debug_fotos'}
+PUBLIC = {'login', 'logo', 'static', 'api_debug_fotos', 'api_foto_fs'}
 
 @app.before_request
 def check_auth():
@@ -124,13 +124,18 @@ def index():
 
 @app.route('/api/imoveis')
 def api_imoveis():
-    conn = get_db()
-    rows = conn.execute('''
-        SELECT i.*, (SELECT f.id FROM fotos f WHERE f.imovel_id=i.id ORDER BY f.ordem LIMIT 1) as foto_id
-        FROM imoveis i WHERE i.ativo=1 ORDER BY i.nome
-    ''').fetchall()
-    conn.close()
-    return jsonify([dict(r) for r in rows])
+    try:
+        conn = get_db()
+        rows = conn.execute('''
+            SELECT i.*,
+                (SELECT f.id       FROM fotos f WHERE f.imovel_id=i.id ORDER BY f.ordem LIMIT 1) as foto_id,
+                (SELECT f.nome_orig FROM fotos f WHERE f.imovel_id=i.id ORDER BY f.ordem LIMIT 1) as foto_nome
+            FROM imoveis i WHERE i.ativo=1 ORDER BY i.nome
+        ''').fetchall()
+        conn.close()
+        return jsonify([dict(r) for r in rows])
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 @app.route('/api/imovel/<int:iid>/copy')
 def api_copy(iid):
@@ -141,32 +146,35 @@ def api_copy(iid):
         return '', 404
     return row['copy_txt'], 200, {'Content-Type': 'text/plain; charset=utf-8'}
 
+@app.route('/api/foto/fs/<path:filepath>')
+def api_foto_fs(filepath):
+    """Serve fotos do filesystem — sem query no banco"""
+    fullpath = os.path.join(IMOVEIS_DIR, filepath)
+    if not os.path.abspath(fullpath).startswith(os.path.abspath(IMOVEIS_DIR)):
+        return '', 403
+    if not os.path.exists(fullpath):
+        return '', 404
+    mime = 'image/png' if fullpath.lower().endswith('.png') else 'image/jpeg'
+    return send_file(fullpath, mimetype=mime)
+
 @app.route('/api/foto/<int:fid>')
 def api_foto(fid):
-    conn = get_db()
-    row = conn.execute('''
-        SELECT f.dados, f.mime, f.nome_orig, i.slug
-        FROM fotos f JOIN imoveis i ON i.id = f.imovel_id
-        WHERE f.id=?
-    ''', (fid,)).fetchone()
-    conn.close()
-    if not row:
-        return '', 404
-    # Tenta servir do filesystem primeiro (mais rápido e confiável)
-    filepath = os.path.join(IMOVEIS_DIR, row['slug'], row['nome_orig'])
-    if os.path.exists(filepath):
-        return send_file(filepath, mimetype=row['mime'])
-    # Fallback: blob no banco (fotos enviadas pelo admin)
-    dados = row['dados']
-    if not dados:
-        return '', 404
-    if isinstance(dados, memoryview):
-        dados = bytes(dados)
-    elif not isinstance(dados, bytes):
-        import base64 as _b64
-        try: dados = _b64.b64decode(dados)
-        except Exception: return '', 500
-    return Response(dados, mimetype=row['mime'])
+    """Serve fotos de admin (blob no banco)"""
+    try:
+        conn = get_db()
+        row = conn.execute('SELECT dados, mime FROM fotos WHERE id=?', (fid,)).fetchone()
+        conn.close()
+        if not row or not row['dados']:
+            return '', 404
+        dados = row['dados']
+        if isinstance(dados, memoryview):
+            dados = bytes(dados)
+        elif not isinstance(dados, bytes):
+            import base64 as _b64
+            dados = _b64.b64decode(dados)
+        return Response(dados, mimetype=row['mime'])
+    except Exception:
+        return '', 500
 
 @app.route('/api/funil')
 def api_funil():
