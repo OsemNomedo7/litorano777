@@ -126,14 +126,18 @@ def index():
 def api_imoveis():
     try:
         conn = get_db()
-        rows = conn.execute('''
-            SELECT i.*,
-                (SELECT f.id       FROM fotos f WHERE f.imovel_id=i.id ORDER BY f.ordem LIMIT 1) as foto_id,
-                (SELECT f.nome_orig FROM fotos f WHERE f.imovel_id=i.id ORDER BY f.ordem LIMIT 1) as foto_nome
-            FROM imoveis i WHERE i.ativo=1 ORDER BY i.nome
-        ''').fetchall()
+        rows = conn.execute('SELECT * FROM imoveis WHERE ativo=1 ORDER BY nome').fetchall()
+        fotos = conn.execute('SELECT imovel_id, nome_orig FROM fotos ORDER BY imovel_id, ordem').fetchall()
         conn.close()
-        return jsonify([dict(r) for r in rows])
+        fotos_map = {}
+        for f in fotos:
+            fotos_map.setdefault(f['imovel_id'], []).append(f['nome_orig'])
+        result = []
+        for r in rows:
+            d = dict(r)
+            d['fotos'] = fotos_map.get(r['id'], [])
+            result.append(d)
+        return jsonify(result)
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
