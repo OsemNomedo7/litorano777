@@ -137,6 +137,19 @@ select.f-input option{background:#0a0a1a}
 .section{display:none}
 .section.active{display:block}
 
+/* DRAG FOTOS */
+.foto-item{cursor:grab}
+.foto-item.sortable-chosen{opacity:.7;cursor:grabbing}
+.foto-item.sortable-ghost{opacity:.3}
+
+/* CHART */
+#chart-container{background:var(--bg2);border:1px solid rgba(255,255,255,.07);border-radius:12px;padding:20px;margin-bottom:28px}
+#chart-container canvas{max-height:200px}
+
+/* MODAL PREVIEW PDF */
+#modal-preview-pdf .modal{max-width:900px;width:96vw;padding:20px}
+#modal-preview-pdf iframe{width:100%;height:80vh;border:none;border-radius:6px;background:#fff}
+
 /* RESPONSIVE */
 @media(max-width:860px){
   .sidebar{width:60px}.sb-item span{display:none}.sb-logo img{width:36px}
@@ -144,6 +157,8 @@ select.f-input option{background:#0a0a1a}
   .form-grid{grid-template-columns:1fr}.im-grid{grid-template-columns:1fr}
 }
 </style>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
 </head>
 <body>
 
@@ -153,6 +168,7 @@ select.f-input option{background:#0a0a1a}
     <a class="sb-item active" onclick="showSection('dashboard')"><span class="sb-icon">⬡</span><span>Dashboard</span></a>
     <a class="sb-item" onclick="showSection('users')"><span class="sb-icon">👤</span><span>Usuários</span></a>
     <a class="sb-item" onclick="showSection('imoveis')"><span class="sb-icon">🏠</span><span>Imóveis</span></a>
+    <a class="sb-item" onclick="showSection('historico')"><span class="sb-icon">📄</span><span>Histórico</span></a>
     <a class="sb-item" onclick="showSection('config')"><span class="sb-icon">⚙️</span><span>Configurações</span></a>
     <a class="sb-item" onclick="showSection('logs')"><span class="sb-icon">📋</span><span>Logs</span></a>
   </nav>
@@ -166,6 +182,7 @@ select.f-input option{background:#0a0a1a}
   <div class="topbar">
     <div class="page-title" id="page-title">Dashboard</div>
     <div class="topbar-right">
+      <button class="btn btn-sm" onclick="baixarBackup()" style="border-color:rgba(57,255,20,.3);color:var(--ng);font-size:10px;padding:4px 10px" title="Baixar backup JSON">⬇ Backup</button>
       <span class="badge-admin">ADMIN</span>
       <span class="topbar-user" id="topbar-user"></span>
     </div>
@@ -182,6 +199,11 @@ select.f-input option{background:#0a0a1a}
         <div class="stat-card"><div class="stat-label">Total Usuários</div><div class="stat-val c-ny" id="s-us-tot">—</div></div>
         <div class="stat-card"><div class="stat-label">Logs Hoje</div><div class="stat-val c-no" id="s-log-hj">—</div></div>
         <div class="stat-card"><div class="stat-label">Total Logs</div><div class="stat-val c-nk" id="s-log-tot">—</div></div>
+        <div class="stat-card" style="grid-column:1/-1"><div class="stat-label">Contratos Gerados (7 dias)</div><div class="stat-val c-nc" id="s-contratos">—</div></div>
+      </div>
+      <div id="chart-container">
+        <div class="sec-title" style="margin-bottom:14px">📊 Contratos — Últimos 7 Dias</div>
+        <canvas id="chart-contratos"></canvas>
       </div>
       <div class="sec-hd"><div class="sec-title">📋 Atividade Recente</div></div>
       <div class="tbl-wrap">
@@ -209,6 +231,15 @@ select.f-input option{background:#0a0a1a}
         <button class="btn btn-primary" onclick="openModalImovel()">+ Novo Imóvel</button>
       </div>
       <div id="imoveis-grid-admin" class="im-grid"></div>
+    </div>
+
+    <!-- HISTÓRICO -->
+    <div id="section-historico" class="section">
+      <div class="sec-hd"><div class="sec-title">📄 Histórico de Contratos</div></div>
+      <div class="tbl-wrap">
+        <table><thead><tr><th>Data</th><th>Usuário</th><th>Imóvel</th><th>Cliente</th><th>Período</th><th>Valor</th></tr></thead>
+        <tbody id="historico-tbody"></tbody></table>
+      </div>
     </div>
 
     <!-- CONFIGURAÇÕES -->
@@ -317,6 +348,8 @@ select.f-input option{background:#0a0a1a}
       <div><label class="f-label">Mobiliado</label>
         <select class="f-input" id="mi-mob"><option>Sim</option><option>Não</option></select>
       </div>
+      <div><label class="f-label">Diária Baixa Temporada (R$)</label><input class="f-input" id="mi-preco-baixa" placeholder="ex: 350.00"></div>
+      <div><label class="f-label">Diária Alta Temporada (R$)</label><input class="f-input" id="mi-preco-alta" placeholder="ex: 650.00"></div>
       <div><label class="f-label">Destaque 1</label><input class="f-input" id="mi-d1" placeholder="ex: 100m da praia"></div>
       <div><label class="f-label">Destaque 2</label><input class="f-input" id="mi-d2" placeholder="ex: Piscina privativa"></div>
       <div><label class="f-label">Destaque 3</label><input class="f-input" id="mi-d3" placeholder="ex: Garagem coberta"></div>
@@ -367,13 +400,14 @@ function showSection(name) {
   document.querySelectorAll('.section').forEach(s=>s.classList.remove('active'));
   document.querySelectorAll('.sb-item').forEach(i=>i.classList.remove('active'));
   document.getElementById('section-'+name).classList.add('active');
-  document.querySelectorAll('.sb-item')[['dashboard','users','imoveis','config','logs'].indexOf(name)]?.classList.add('active');
-  const titles = {dashboard:'Dashboard',users:'Usuários',imoveis:'Imóveis',config:'Configurações',logs:'Logs'};
+  document.querySelectorAll('.sb-item')[['dashboard','users','imoveis','historico','config','logs'].indexOf(name)]?.classList.add('active');
+  const titles = {dashboard:'Dashboard',users:'Usuários',imoveis:'Imóveis',historico:'Histórico',config:'Configurações',logs:'Logs'};
   document.getElementById('page-title').textContent = titles[name] || name;
   currentSection = name;
   if(name==='dashboard') loadDashboard();
   if(name==='users') loadUsers();
   if(name==='imoveis') loadImoveis();
+  if(name==='historico') loadHistorico();
   if(name==='config') loadConfig();
   if(name==='logs') loadLogs(1);
 }
@@ -409,6 +443,7 @@ function openModal(id) { document.getElementById(id).style.display='flex'; }
 document.addEventListener('keydown', e=>{ if(e.key==='Escape') document.querySelectorAll('.modal-overlay').forEach(m=>m.style.display='none'); });
 
 // ── DASHBOARD ─────────────────────────────────────────────────────────────────
+let _chartInstance = null;
 async function loadDashboard() {
   const d = await api('/admin/api/stats');
   document.getElementById('s-im-at').textContent  = d.stats.imoveis_ativos;
@@ -424,6 +459,66 @@ async function loadDashboard() {
       <td><span class="log-acao">${l.acao||''}</span></td>
       <td style="font-size:10px;color:var(--muted);max-width:200px;overflow:hidden;text-overflow:ellipsis">${l.detalhes||''}</td>
     </tr>`).join('');
+  // Gráfico de barras — últimos 7 dias
+  try {
+    const stats = await api('/api/historico/stats');
+    // Gerar os últimos 7 dias como labels
+    const labels = [];
+    const dataMap = {};
+    for(const s of stats) dataMap[s.data] = s.total;
+    for(let i=6; i>=0; i--) {
+      const d2 = new Date(); d2.setDate(d2.getDate()-i);
+      const iso = d2.toISOString().split('T')[0];
+      labels.push(iso.slice(5)); // MM-DD
+    }
+    const values = labels.map(l => {
+      const full = new Date().getFullYear() + '-' + l;
+      return dataMap[full] || 0;
+    });
+    document.getElementById('s-contratos').textContent = values.reduce((a,b)=>a+b,0);
+    if(_chartInstance) { _chartInstance.destroy(); _chartInstance=null; }
+    const ctx = document.getElementById('chart-contratos').getContext('2d');
+    _chartInstance = new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels,
+        datasets: [{
+          label: 'Contratos',
+          data: values,
+          backgroundColor: 'rgba(0,245,255,.25)',
+          borderColor: 'rgba(0,245,255,.8)',
+          borderWidth: 1,
+          borderRadius: 4,
+        }]
+      },
+      options: {
+        responsive: true,
+        plugins: { legend: { display: false } },
+        scales: {
+          x: { ticks: { color: 'rgba(204,208,240,.5)', font:{size:10} }, grid: { color: 'rgba(255,255,255,.05)' } },
+          y: { ticks: { color: 'rgba(204,208,240,.5)', font:{size:10}, stepSize:1 }, grid: { color: 'rgba(255,255,255,.05)' }, beginAtZero: true }
+        }
+      }
+    });
+  } catch(e) {}
+}
+
+async function baixarBackup() {
+  try {
+    const r = await fetch('/admin/api/backup');
+    if (!r.ok) { toast('Erro ao gerar backup', true); return; }
+    const cd = r.headers.get('Content-Disposition') || '';
+    const m = cd.match(/filename="?([^"]+)"?/);
+    const fname = m ? m[1] : 'backup.json';
+    const blob = await r.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href=url; a.download=fname;
+    document.body.appendChild(a); a.click();
+    document.body.removeChild(a);
+    setTimeout(()=>URL.revokeObjectURL(url),2000);
+    toast('Backup baixado!');
+  } catch(e) { toast('Erro: '+e.message, true); }
 }
 
 // ── USUÁRIOS ──────────────────────────────────────────────────────────────────
@@ -513,6 +608,10 @@ async function loadImoveis() {
   const rows = await api('/admin/api/imoveis');
   document.getElementById('imoveis-grid-admin').innerHTML = rows.map(im=>{
     const fotoUrl = im.foto_id ? `/api/foto/${im.foto_id}` : null;
+    const precoInfo = (im.preco_baixa||im.preco_alta) ?
+      `<div style="font-size:10px;color:var(--ny);margin-bottom:8px">`+
+      (im.preco_baixa?`<span>Baixa: R$${im.preco_baixa}</span> `:'')+
+      (im.preco_alta?`<span>Alta: R$${im.preco_alta}</span>`:'')+'</div>' : '';
     return `<div class="im-card">
       ${fotoUrl ? `<img class="im-card-img" src="${fotoUrl}" alt="">` : '<div class="im-card-img-placeholder">🏠</div>'}
       <div class="im-card-body">
@@ -521,6 +620,7 @@ async function loadImoveis() {
           <span class="badge ${im.ativo?'badge-ok':'badge-off'}" style="font-size:8px">${im.ativo?'ATIVO':'INATIVO'}</span>
         </div>
         <div class="im-card-end">${im.endereco||''}</div>
+        ${precoInfo}
         <div class="im-card-actions">
           <button class="btn btn-warn btn-sm" onclick="openModalEditImovel(${im.id})">✏️ Editar</button>
           <button class="btn btn-sm" onclick="openModalFotos(${im.id})" style="border-color:rgba(0,245,255,.3);color:var(--nc)">📸 Fotos</button>
@@ -535,7 +635,7 @@ async function loadImoveis() {
 function openModalImovel() {
   document.getElementById('mi-id').value='';
   document.getElementById('mi-title').textContent='Novo Imóvel';
-  ['nome','end','cep','cod','quartos','banheiros','area','desc','copy','d1','d2','d3'].forEach(f=>{
+  ['nome','end','cep','cod','quartos','banheiros','area','desc','copy','d1','d2','d3','preco-baixa','preco-alta'].forEach(f=>{
     const el = document.getElementById('mi-'+f); if(el) el.value='';
   });
   document.getElementById('mi-cidade').value='Ubatuba';
@@ -563,27 +663,31 @@ async function openModalEditImovel(id) {
   document.getElementById('mi-d3').value=im.destaque3||'';
   document.getElementById('mi-desc').value=im.descricao||'';
   document.getElementById('mi-copy').value=im.copy_txt||'';
+  document.getElementById('mi-preco-baixa').value=im.preco_baixa||'';
+  document.getElementById('mi-preco-alta').value=im.preco_alta||'';
   openModal('modal-imovel');
 }
 
 async function saveImovel() {
   const id = document.getElementById('mi-id').value;
   const body = {
-    nome:       document.getElementById('mi-nome').value,
-    endereco:   document.getElementById('mi-end').value,
-    cep:        document.getElementById('mi-cep').value,
-    cidade:     document.getElementById('mi-cidade').value,
-    estado:     document.getElementById('mi-estado').value,
-    cod_imovel: document.getElementById('mi-cod').value,
-    quartos:    document.getElementById('mi-quartos').value,
-    banheiros:  document.getElementById('mi-banheiros').value,
-    area:       document.getElementById('mi-area').value,
-    mobiliado:  document.getElementById('mi-mob').value,
-    destaque1:  document.getElementById('mi-d1').value,
-    destaque2:  document.getElementById('mi-d2').value,
-    destaque3:  document.getElementById('mi-d3').value,
-    descricao:  document.getElementById('mi-desc').value,
-    copy_txt:   document.getElementById('mi-copy').value,
+    nome:        document.getElementById('mi-nome').value,
+    endereco:    document.getElementById('mi-end').value,
+    cep:         document.getElementById('mi-cep').value,
+    cidade:      document.getElementById('mi-cidade').value,
+    estado:      document.getElementById('mi-estado').value,
+    cod_imovel:  document.getElementById('mi-cod').value,
+    quartos:     document.getElementById('mi-quartos').value,
+    banheiros:   document.getElementById('mi-banheiros').value,
+    area:        document.getElementById('mi-area').value,
+    mobiliado:   document.getElementById('mi-mob').value,
+    destaque1:   document.getElementById('mi-d1').value,
+    destaque2:   document.getElementById('mi-d2').value,
+    destaque3:   document.getElementById('mi-d3').value,
+    descricao:   document.getElementById('mi-desc').value,
+    copy_txt:    document.getElementById('mi-copy').value,
+    preco_baixa: document.getElementById('mi-preco-baixa').value,
+    preco_alta:  document.getElementById('mi-preco-alta').value,
   };
   const url = id ? `/admin/api/imoveis/${id}` : '/admin/api/imoveis';
   const method = id ? 'PUT' : 'POST';
@@ -612,13 +716,31 @@ async function openModalFotos(iid) {
   openModal('modal-fotos');
 }
 
+let _sortableInstance = null;
 async function renderFotos(iid) {
   const fotos = await api(`/admin/api/imoveis/${iid}/fotos`);
-  document.getElementById('fotos-grid-modal').innerHTML = fotos.map(f=>`
-    <div class="foto-item" id="foto-${f.id}">
+  const grid = document.getElementById('fotos-grid-modal');
+  grid.innerHTML = fotos.map(f=>`
+    <div class="foto-item" data-fid="${f.id}" id="foto-${f.id}">
       <img src="/api/foto/${f.id}" alt="${f.nome_orig}">
       <button class="foto-del" onclick="deleteFoto(${f.id},${iid})">✕</button>
     </div>`).join('');
+  // Inicializar Sortable para drag & drop
+  if(_sortableInstance) { _sortableInstance.destroy(); _sortableInstance=null; }
+  if(window.Sortable) {
+    _sortableInstance = Sortable.create(grid, {
+      animation: 150,
+      ghostClass: 'sortable-ghost',
+      chosenClass: 'sortable-chosen',
+      onEnd: async function() {
+        const items = grid.querySelectorAll('.foto-item');
+        for(let i=0; i<items.length; i++) {
+          const fid = parseInt(items[i].dataset.fid);
+          await api(`/admin/api/fotos/${fid}/ordem`, 'PUT', {ordem: i});
+        }
+      }
+    });
+  }
 }
 
 async function deleteFoto(fid, iid) {
@@ -738,6 +860,23 @@ async function salvarFunil() {
   const d = await api('/admin/api/funil', 'PUT', items);
   if(d.error) { toast(d.error, true); return; }
   toast('✔ Funil salvo!');
+}
+
+// ── HISTÓRICO ─────────────────────────────────────────────────────────────────
+async function loadHistorico() {
+  try {
+    const rows = await api('/api/historico');
+    document.getElementById('historico-tbody').innerHTML = rows.length ? rows.map(h=>`
+      <tr>
+        <td style="font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--muted);white-space:nowrap">${h.criado_em||''}</td>
+        <td style="font-size:11px">${h.user_nome||'—'}</td>
+        <td style="font-family:'Share Tech Mono',monospace;font-size:11px;color:var(--nc)">${h.imovel_nome||'—'}</td>
+        <td style="font-size:11px">${h.cliente_nome||'—'}<br><span style="font-size:9px;color:var(--muted)">${h.cliente_cpf||''}</span></td>
+        <td style="font-size:10px;color:var(--muted);white-space:nowrap">${h.checkin||'—'} → ${h.checkout||'—'}</td>
+        <td style="font-family:'Share Tech Mono',monospace;font-size:11px;color:var(--ng)">${h.valor ? 'R$ '+parseFloat(h.valor).toLocaleString('pt-BR',{minimumFractionDigits:2}) : '—'}</td>
+      </tr>`).join('')
+      : '<tr><td colspan="6" style="color:var(--muted);font-size:11px;text-align:center;padding:20px">Nenhum registro ainda.</td></tr>';
+  } catch(e) { toast('Erro ao carregar histórico', true); }
 }
 
 // ── LOGS ──────────────────────────────────────────────────────────────────────

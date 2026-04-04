@@ -274,6 +274,53 @@
   .car-dot { width:5px; height:5px; border-radius:50%; background:rgba(255,255,255,.4); transition:.2s; }
   .car-dot.on { background:#fff; }
 
+  /* TOAST NOTIFICAÇÃO */
+  .toast-notif{position:fixed;bottom:28px;right:28px;z-index:9999;
+    background:rgba(7,7,26,.97);border:1px solid rgba(57,255,20,.5);border-radius:10px;
+    padding:14px 22px;font-family:'Share Tech Mono',monospace;font-size:12px;color:var(--ng);
+    box-shadow:0 0 24px rgba(57,255,20,.2);transform:translateY(80px);opacity:0;
+    transition:.35s cubic-bezier(.4,0,.2,1);pointer-events:none;max-width:320px;}
+  .toast-notif.show{transform:translateY(0);opacity:1;}
+
+  /* AUTOCOMPLETE CLIENTES */
+  #clientes-sugestoes{position:absolute;top:100%;left:0;right:0;z-index:500;
+    background:rgba(7,7,26,.98);border:1px solid rgba(0,245,255,.2);border-radius:0 0 8px 8px;
+    box-shadow:0 8px 24px rgba(0,0,0,.6);overflow:hidden;display:none;}
+  #clientes-sugestoes.open{display:block;}
+  .cli-item{padding:10px 14px;cursor:pointer;border-bottom:1px solid rgba(255,255,255,.04);
+    font-size:12px;color:var(--text);transition:background .15s;}
+  .cli-item:last-child{border-bottom:none;}
+  .cli-item:hover{background:rgba(0,245,255,.07);}
+  .cli-nome{font-family:'Share Tech Mono',monospace;color:var(--nc);font-size:11px;}
+  .cli-det{font-size:10px;color:var(--muted);margin-top:1px;}
+  .ldnome-wrap{position:relative;}
+
+  /* HISTÓRICO PAINEL */
+  #historico-painel{margin-bottom:16px;}
+  #historico-painel table{width:100%;border-collapse:collapse;font-size:11px;}
+  #historico-painel th{font-family:'Share Tech Mono',monospace;font-size:9px;color:var(--muted);
+    text-transform:uppercase;letter-spacing:1px;padding:8px 12px;text-align:left;
+    background:rgba(0,0,0,.3);border-bottom:1px solid rgba(255,255,255,.06);}
+  #historico-painel td{padding:9px 12px;border-bottom:1px solid rgba(255,255,255,.04);color:var(--text);}
+  #historico-painel tr:last-child td{border-bottom:none;}
+  #historico-painel tr:hover td{background:rgba(255,255,255,.015);}
+
+  /* MODAL PREVIEW PDF */
+  #modal-pdf-preview{position:fixed;inset:0;background:rgba(0,0,0,.8);z-index:9000;
+    display:none;align-items:center;justify-content:center;backdrop-filter:blur(6px);}
+  #modal-pdf-preview.open{display:flex;}
+  #modal-pdf-preview .mpd-inner{background:var(--bg-card);border:1px solid rgba(0,245,255,.2);
+    border-radius:12px;width:92vw;max-width:900px;padding:18px;display:flex;flex-direction:column;gap:12px;}
+  #modal-pdf-preview iframe{width:100%;height:80vh;border:none;border-radius:6px;background:#fff;}
+  #modal-pdf-preview .mpd-hd{display:flex;align-items:center;justify-content:space-between;}
+  #modal-pdf-preview .mpd-title{font-family:'Share Tech Mono',monospace;color:var(--nc);font-size:13px;letter-spacing:2px;}
+
+  /* BOTÃO LINK DIRETO */
+  .btn-link-direto{padding:6px 14px;background:rgba(191,90,242,.1);border:1px solid rgba(191,90,242,.35);
+    border-radius:6px;color:var(--np);font-family:'Share Tech Mono',monospace;font-size:10px;
+    cursor:pointer;transition:.2s;letter-spacing:.5px;}
+  .btn-link-direto:hover{background:rgba(191,90,242,.2);}
+
   /* ══════════════════════════════════════════════
      MOBILE — max 640px
   ══════════════════════════════════════════════ */
@@ -401,6 +448,22 @@
   <div style="font-family:'Share Tech Mono',monospace;color:var(--nc);font-size:13px;letter-spacing:2px;margin-bottom:16px;text-transform:uppercase">
     &#x1F3E0; Selecione o Im&oacute;vel
   </div>
+
+  <!-- PAINEL HISTÓRICO COLAPSÁVEL -->
+  <div id="historico-painel" style="display:none">
+    <div style="background:var(--bg-card);border:1px solid rgba(255,255,255,.07);border-radius:10px;overflow:hidden;margin-bottom:16px">
+      <div style="overflow-x:auto">
+        <table>
+          <thead><tr><th>Data</th><th>Imóvel</th><th>Cliente</th><th>Check-in → Check-out</th><th>Valor</th></tr></thead>
+          <tbody id="historico-painel-tbody"><tr><td colspan="5" style="color:var(--muted);font-size:11px;text-align:center;padding:16px">Carregando...</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  <div style="margin-bottom:14px">
+    <button onclick="toggleHistoricoPainel()" style="background:rgba(0,245,255,.07);border:1px solid rgba(0,245,255,.2);border-radius:7px;padding:7px 16px;color:var(--muted);font-family:'Share Tech Mono',monospace;font-size:11px;cursor:pointer;transition:.2s" id="btn-historico-toggle">📄 Histórico</button>
+  </div>
+
   <div id="imoveis-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:14px;margin-bottom:16px">
     <div style="color:var(--muted);font-size:12px">Carregando im&oacute;veis...</div>
   </div>
@@ -411,7 +474,10 @@
         <div style="font-family:'Share Tech Mono',monospace;color:var(--nc);font-size:13px;font-weight:700" id="imovel-nome-sel">-</div>
         <div style="font-family:'Share Tech Mono',monospace;color:var(--muted);font-size:10px;margin-top:2px" id="imovel-end-sel">-</div>
       </div>
-      <button onclick="limparImovel()" style="background:none;border:1px solid rgba(255,45,120,.3);color:var(--nk);border-radius:6px;padding:4px 10px;cursor:pointer;font-size:11px">Trocar</button>
+      <div style="display:flex;gap:8px;align-items:center">
+        <button id="btn-link-direto" onclick="copiarLinkDireto()" class="btn-link-direto" style="display:none">🔗 Link Direto</button>
+        <button onclick="limparImovel()" style="background:none;border:1px solid rgba(255,45,120,.3);color:var(--nk);border-radius:6px;padding:4px 10px;cursor:pointer;font-size:11px">Trocar</button>
+      </div>
     </div>
   </div>
 
@@ -601,9 +667,11 @@
   <div class="card card-c">
     <div class="card-hd">🏠 Dados do Locador (Proprietário)</div>
     <div class="card-bd">
-      <div class="f w2">
+      <div class="f w2 ldnome-wrap">
         <label>Nome Completo <span class="req">*</span></label>
-        <input type="text" id="ldNome" placeholder="Ex: Gilberto Oliveira e Silva">
+        <input type="text" id="ldNome" placeholder="Ex: Gilberto Oliveira e Silva"
+          oninput="filtrarSugestoes(this.value)" onfocus="abrirSugestoes()" autocomplete="off">
+        <div id="clientes-sugestoes"></div>
       </div>
       <div class="f">
         <label>Nacionalidade <span class="req">*</span></label>
@@ -779,7 +847,19 @@
 
     
   <div class="step-nav">
+    <button onclick="previewContrato()" style="padding:16px 20px;background:rgba(191,90,242,.08);border:1px solid rgba(191,90,242,.35);border-radius:10px;color:var(--np);font-family:'Share Tech Mono',monospace;font-size:12px;font-weight:700;letter-spacing:1px;cursor:pointer;transition:all .2s;white-space:nowrap" title="Visualizar PDF sem avançar">👁 Preview</button>
     <button class="btn-next btn-n1" onclick="contratoEAvancar()">&#x2B07;&#xFE0F; Gerar Contrato &amp; Avan&#xE7;ar &#x2192;</button>
+  </div>
+
+  <!-- MODAL PREVIEW PDF -->
+  <div id="modal-pdf-preview">
+    <div class="mpd-inner">
+      <div class="mpd-hd">
+        <div class="mpd-title">👁 PREVIEW DO CONTRATO</div>
+        <button onclick="fecharPreview()" style="background:none;border:1px solid rgba(255,45,120,.3);color:var(--nk);border-radius:6px;padding:5px 12px;cursor:pointer;font-family:'Share Tech Mono',monospace;font-size:11px">✕ Fechar</button>
+      </div>
+      <iframe id="preview-iframe" src="about:blank"></iframe>
+    </div>
   </div>
 
 </div><!-- /step1 -->
@@ -1024,6 +1104,8 @@
 
 
 </div>
+
+<div class="toast-notif" id="toast-notif"></div>
 
 <script>
 
@@ -1904,6 +1986,14 @@ function contratoEAvancar() {
   try { gerarPDF(); } catch(e) { alert('Erro ao gerar contrato: ' + e.message); return; }
   if (!pdfBlobs.contrato) return; // gerarPDF saiu antes de gerar (validacao interna)
 
+  // Salvar cliente recorrente
+  fetch('/api/clientes', {method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({
+      nome: ldNomeV, cpf: ldCPFV, endereco: imEndV,
+      cep: document.getElementById('imCEP')?.value || ''
+    })
+  }).catch(()=>{});
+
   // Pre-preenche IPTU
   document.getElementById('iNome').value     = ldNomeV.toUpperCase();
   document.getElementById('iCPF').value      = ldCPFV;
@@ -1912,6 +2002,7 @@ function contratoEAvancar() {
   calcIPTU();
 
   document.getElementById('notice-contrato').style.display = '';
+  showNotificacao('📄 Contrato gerado com sucesso!');
   goToStep(2);
 }
 
@@ -1948,6 +2039,7 @@ async function iptuEAvancar() {
   calcLuz();
 
   document.getElementById('notice-iptu').style.display = '';
+  showNotificacao('🏛️ IPTU gerado com sucesso!');
   goToStep(3);
 }
 
@@ -1972,6 +2064,21 @@ async function luzEAvancar() {
   }
   try { await gerarLuz(); } catch(e) { alert('Erro ao gerar Conta de Luz: ' + e.message); return; }
 
+  // Salvar no histórico
+  const ci4 = document.getElementById('checkin').value;
+  const co4 = document.getElementById('checkout').value;
+  const val4 = parseFloat(document.getElementById('valor').value) || 0;
+  const ldNome4 = document.getElementById('ldNome').value.trim();
+  const ldCPF4  = document.getElementById('ldCPF').value.trim();
+  fetch('/api/historico', {method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({
+      imovel_id:    imovelAtual ? imovelAtual.id   : null,
+      imovel_nome:  imovelAtual ? imovelAtual.nome : '',
+      cliente_nome: ldNome4, cliente_cpf: ldCPF4,
+      checkin: ci4, checkout: co4, valor: val4
+    })
+  }).catch(()=>{});
+
   const list = document.getElementById('doc-list');
   list.innerHTML = '';
   [
@@ -1987,6 +2094,7 @@ async function luzEAvancar() {
         + '</div>';
     }
   });
+  showNotificacao('⚡ Conta de Luz gerada! Todos os documentos prontos.');
   goToStep(4);
 }
 
@@ -2192,6 +2300,10 @@ function selecionarImovel(imJson) {
 
   const fm7d = document.getElementById('fm7-dest');
   if (fm7d && im.destaque1) fm7d.textContent = im.destaque1.toLowerCase();
+
+  // Mostrar botão Link Direto
+  const btnLink = document.getElementById('btn-link-direto');
+  if (btnLink && im.slug) btnLink.style.display = '';
 }
 
 function limparImovel() {
@@ -2199,6 +2311,8 @@ function limparImovel() {
   document.getElementById('imovel-selecionado').style.display = 'none';
   document.getElementById('guia-operacional').style.display = 'none';
   document.querySelectorAll('.imovel-card').forEach(c => c.classList.remove('ativo'));
+  const btnLink = document.getElementById('btn-link-direto');
+  if (btnLink) btnLink.style.display = 'none';
 }
 
 function copiarTexto(id, btn) {
@@ -2213,7 +2327,175 @@ function copiarTexto(id, btn) {
   });
 }
 
-document.addEventListener('DOMContentLoaded', carregarImoveis);
+document.addEventListener('DOMContentLoaded', async () => {
+  await carregarImoveis();
+  carregarClientesCache();
+  // Auto-selecionar imóvel por slug (link direto)
+  if (window._IMOVEL_SLUG) {
+    const cards = document.querySelectorAll('.imovel-card');
+    // Find in already loaded list
+    const r = await fetch('/api/imoveis');
+    if (r.ok) {
+      const lista = await r.json();
+      const im = lista.find(i => i.slug === window._IMOVEL_SLUG);
+      if (im) selecionarImovel(JSON.stringify(im));
+    }
+  }
+});
+
+// =========================================================
+// NOTIFICAÇÃO TOAST + SOM
+// =========================================================
+function showNotificacao(msg) {
+  const el = document.getElementById('toast-notif');
+  el.textContent = msg;
+  el.classList.add('show');
+  setTimeout(() => el.classList.remove('show'), 4000);
+  // Som curto — oscilador 440hz por 200ms
+  try {
+    const ac = new (window.AudioContext || window.webkitAudioContext)();
+    const osc = ac.createOscillator();
+    const gain = ac.createGain();
+    osc.connect(gain); gain.connect(ac.destination);
+    osc.frequency.value = 440;
+    osc.type = 'sine';
+    gain.gain.setValueAtTime(0.15, ac.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ac.currentTime + 0.2);
+    osc.start(ac.currentTime);
+    osc.stop(ac.currentTime + 0.2);
+  } catch(e) {}
+}
+
+// =========================================================
+// AUTOCOMPLETE DE CLIENTES
+// =========================================================
+let _clientesCache = [];
+
+async function carregarClientesCache() {
+  try {
+    const r = await fetch('/api/clientes');
+    if (r.ok) _clientesCache = await r.json();
+  } catch(e) {}
+}
+
+function abrirSugestoes() {
+  if (!_clientesCache.length) carregarClientesCache().then(() => renderSugestoes(''));
+  else renderSugestoes(document.getElementById('ldNome').value);
+}
+
+function filtrarSugestoes(q) {
+  renderSugestoes(q);
+}
+
+function renderSugestoes(q) {
+  const box = document.getElementById('clientes-sugestoes');
+  const termo = q.toLowerCase().trim();
+  const lista = _clientesCache
+    .filter(c => !termo || c.nome.toLowerCase().includes(termo) || (c.cpf||'').includes(termo))
+    .slice(0, 8);
+  if (!lista.length) { box.classList.remove('open'); return; }
+  box.innerHTML = lista.map((c,i) =>
+    `<div class="cli-item" onclick="selecionarCliente(${i})">
+      <div class="cli-nome">${c.nome}</div>
+      <div class="cli-det">${c.cpf||''}${c.endereco?' — '+c.endereco.slice(0,40):''}</div>
+    </div>`
+  ).join('');
+  // Store filtered list in box dataset
+  box.dataset.lista = JSON.stringify(lista);
+  box.classList.add('open');
+}
+
+function selecionarCliente(idx) {
+  const box = document.getElementById('clientes-sugestoes');
+  const lista = JSON.parse(box.dataset.lista || '[]');
+  const c = lista[idx];
+  if (!c) return;
+  const setVal = (id, v) => { const el = document.getElementById(id); if(el && v) el.value = v; };
+  setVal('ldNome', c.nome);
+  setVal('ldCPF',  c.cpf);
+  setVal('imEnd',  c.endereco);
+  box.classList.remove('open');
+}
+
+document.addEventListener('click', e => {
+  const box = document.getElementById('clientes-sugestoes');
+  if (box && !box.contains(e.target) && e.target.id !== 'ldNome') {
+    box.classList.remove('open');
+  }
+});
+
+// =========================================================
+// HISTÓRICO PAINEL COLAPSÁVEL
+// =========================================================
+let _historicoAberto = false;
+
+async function toggleHistoricoPainel() {
+  _historicoAberto = !_historicoAberto;
+  const painel = document.getElementById('historico-painel');
+  const btn = document.getElementById('btn-historico-toggle');
+  painel.style.display = _historicoAberto ? '' : 'none';
+  btn.style.color = _historicoAberto ? 'var(--nc)' : '';
+  btn.style.borderColor = _historicoAberto ? 'rgba(0,245,255,.4)' : '';
+  if (_historicoAberto) await renderHistoricoPainel();
+}
+
+async function renderHistoricoPainel() {
+  const tbody = document.getElementById('historico-painel-tbody');
+  tbody.innerHTML = '<tr><td colspan="5" style="color:var(--muted);font-size:11px;text-align:center;padding:16px">Carregando...</td></tr>';
+  try {
+    const r = await fetch('/api/historico');
+    if (!r.ok) throw new Error();
+    const rows = await r.json();
+    const top10 = rows.slice(0, 10);
+    tbody.innerHTML = top10.length ? top10.map(h =>
+      `<tr>
+        <td style="font-family:'Share Tech Mono',monospace;font-size:9px;color:var(--muted);white-space:nowrap">${(h.criado_em||'').slice(0,16)}</td>
+        <td style="font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--nc)">${h.imovel_nome||'—'}</td>
+        <td style="font-size:11px">${h.cliente_nome||'—'}</td>
+        <td style="font-size:10px;color:var(--muted);white-space:nowrap">${h.checkin||'—'} → ${h.checkout||'—'}</td>
+        <td style="font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--ng)">${h.valor?'R$ '+parseFloat(h.valor).toLocaleString('pt-BR',{minimumFractionDigits:2}):'—'}</td>
+      </tr>`
+    ).join('') : '<tr><td colspan="5" style="color:var(--muted);font-size:11px;text-align:center;padding:16px">Nenhum registro ainda.</td></tr>';
+  } catch(e) {
+    tbody.innerHTML = '<tr><td colspan="5" style="color:var(--nk);font-size:11px;text-align:center;padding:16px">Erro ao carregar histórico.</td></tr>';
+  }
+}
+
+// =========================================================
+// PREVIEW PDF
+// =========================================================
+function previewContrato() {
+  try { gerarPDF(); } catch(e) { alert('Erro ao gerar preview: ' + e.message); return; }
+  if (!pdfBlobs.contrato) return;
+  const url = URL.createObjectURL(pdfBlobs.contrato);
+  document.getElementById('preview-iframe').src = url;
+  document.getElementById('modal-pdf-preview').classList.add('open');
+}
+
+function fecharPreview() {
+  const iframe = document.getElementById('preview-iframe');
+  const oldSrc = iframe.src;
+  iframe.src = 'about:blank';
+  document.getElementById('modal-pdf-preview').classList.remove('open');
+  if (oldSrc && oldSrc !== 'about:blank') setTimeout(() => URL.revokeObjectURL(oldSrc), 1000);
+}
+
+document.getElementById('modal-pdf-preview').addEventListener('click', e => {
+  if (e.target === e.currentTarget) fecharPreview();
+});
+
+// =========================================================
+// LINK DIRETO DO IMÓVEL
+// =========================================================
+function copiarLinkDireto() {
+  if (!imovelAtual || !imovelAtual.slug) return;
+  const url = window.location.origin + '/imovel/' + imovelAtual.slug;
+  navigator.clipboard.writeText(url).then(() => {
+    showNotificacao('🔗 Link copiado!');
+  }).catch(() => {
+    prompt('Copie o link:', url);
+  });
+}
 
 </script>
 </body>

@@ -227,8 +227,37 @@ def init_db():
             detalhes    TEXT,
             ip          TEXT,
             criado_em   TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+        );
+        CREATE TABLE IF NOT EXISTS historico (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id     INTEGER,
+            user_nome   TEXT,
+            imovel_id   INTEGER,
+            imovel_nome TEXT,
+            cliente_nome TEXT,
+            cliente_cpf TEXT,
+            checkin     TEXT,
+            checkout    TEXT,
+            valor       REAL,
+            criado_em   TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+        );
+        CREATE TABLE IF NOT EXISTS clientes (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            nome        TEXT NOT NULL,
+            cpf         TEXT,
+            endereco    TEXT,
+            cep         TEXT,
+            ultimo_uso  TEXT,
+            criado_em   TEXT NOT NULL DEFAULT (datetime('now','localtime'))
         )
     ''')
+    # ALTER TABLE para adicionar colunas novas em imoveis (pode já existir)
+    for col, default in [('preco_baixa', "''"), ('preco_alta', "''")]:
+        try:
+            c.execute(f"ALTER TABLE imoveis ADD COLUMN {col} TEXT DEFAULT {default}")
+            conn.commit()
+        except Exception:
+            pass
     c.execute('INSERT OR IGNORE INTO users (username, pwd_hash, role) VALUES (?,?,?)',
               ('milionariog7', h('milionariog777'), 'admin'))
     c.executemany('INSERT OR IGNORE INTO config (chave, valor) VALUES (?,?)', ADS_DEFAULT)

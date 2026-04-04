@@ -18,7 +18,7 @@ app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024
 
 # ─── AUTH ─────────────────────────────────────────────────────────────────────
 
-PUBLIC = {'login', 'logo', 'static', 'api_debug_fotos', 'api_foto_fs'}
+PUBLIC = {'login', 'logo', 'static', 'api_debug_fotos', 'api_foto_fs', 'imovel_link'}
 
 @app.before_request
 def check_auth():
@@ -531,12 +531,13 @@ def admin_imoveis_create():
         slug = slug + '-' + str(conn.execute('SELECT COUNT(*) FROM imoveis').fetchone()[0])
     conn.execute('''INSERT INTO imoveis
         (slug,nome,endereco,cep,cidade,estado,cod_imovel,quartos,banheiros,area,mobiliado,
-         destaque1,destaque2,destaque3,descricao,copy_txt)
-        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)''', (
+         destaque1,destaque2,destaque3,descricao,copy_txt,preco_baixa,preco_alta)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)''', (
         slug, nome, d.get('endereco',''), d.get('cep',''), d.get('cidade','Ubatuba'),
         d.get('estado','SP'), d.get('cod_imovel',''), d.get('quartos',''), d.get('banheiros',''),
         d.get('area',''), d.get('mobiliado','Sim'), d.get('destaque1',''), d.get('destaque2',''),
         d.get('destaque3',''), d.get('descricao',''), d.get('copy_txt',''),
+        d.get('preco_baixa',''), d.get('preco_alta',''),
     ))
     new_id = conn.lastrowid
     conn.commit(); conn.close()
@@ -556,11 +557,11 @@ def admin_imoveis_edit(iid):
     conn = get_db()
     conn.execute('''UPDATE imoveis SET nome=?,endereco=?,cep=?,cidade=?,estado=?,cod_imovel=?,
         quartos=?,banheiros=?,area=?,mobiliado=?,destaque1=?,destaque2=?,destaque3=?,
-        descricao=?,copy_txt=?,atualizado_em=datetime('now','localtime') WHERE id=?''', (
+        descricao=?,copy_txt=?,preco_baixa=?,preco_alta=?,atualizado_em=datetime('now','localtime') WHERE id=?''', (
         d.get('nome'), d.get('endereco'), d.get('cep'), d.get('cidade'), d.get('estado'),
         d.get('cod_imovel'), d.get('quartos'), d.get('banheiros'), d.get('area'), d.get('mobiliado'),
         d.get('destaque1'), d.get('destaque2'), d.get('destaque3'), d.get('descricao'),
-        d.get('copy_txt'), iid
+        d.get('copy_txt'), d.get('preco_baixa',''), d.get('preco_alta',''), iid
     ))
     conn.commit(); conn.close()
     log_action('admin_editar_imovel', {'id': iid})
@@ -684,6 +685,133 @@ def admin_logs():
                         params + [per, offset]).fetchall()
     conn.close()
     return jsonify({'items': [dict(r) for r in rows], 'total': total, 'page': page, 'pages': max(1,(total+per-1)//per)})
+
+# ─── ROTA LINK DIRETO DO IMÓVEL ──────────────────────────────────────────────
+
+@app.route('/imovel/<slug>')
+def imovel_link(slug):
+    html = open(HTML_APP, encoding='utf-8').read()
+    role = session.get('role', 'user') if session.get('user_id') else 'guest'
+    username = session.get('username', '')
+    html = html.replace('{{USER_ROLE}}', role).replace('{{USERNAME}}', username)
+    # Inject auto-select script
+    inject = f'<script>window._IMOVEL_SLUG = {json.dumps(slug)};</script>'
+    html = html.replace('</head>', inject + '</head>', 1)
+    return html, 200, {'Content-Type': 'text/html; charset=utf-8'}
+
+# ─── API HISTÓRICO ────────────────────────────────────────────────────────────
+
+@app.route('/api/historico', methods=['GET'])
+def api_historico_list():
+    try:
+        conn = get_db()
+        rows = conn.execute('SELECT * FROM historico ORDER BY id DESC LIMIT 50').fetchall()
+        conn.close()
+        return jsonify([dict(r) for r in rows])
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/historico', methods=['POST'])
+def api_historico_create():
+    try:
+        d = request.json or {}
+        conn = get_db()
+        conn.execute('''INSERT INTO historico
+            (user_id,user_nome,imovel_id,imovel_nome,cliente_nome,cliente_cpf,checkin,checkout,valor)
+            VALUES (?,?,?,?,?,?,?,?,?)''', (
+            session.get('user_id'), session.get('username'),
+            d.get('imovel_id'), d.get('imovel_nome'),
+            d.get('cliente_nome'), d.get('cliente_cpf'),
+            d.get('checkin'), d.get('checkout'),
+            d.get('valor')
+        ))
+        conn.commit(); conn.close()
+        return jsonify({'ok': True})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/historico/stats')
+def api_historico_stats():
+    try:
+        conn = get_db()
+        rows = conn.execute('''
+            SELECT date(criado_em) as data, COUNT(*) as total
+            FROM historico
+            WHERE criado_em >= date('now', '-6 days', 'localtime')
+            GROUP BY date(criado_em)
+            ORDER BY data ASC
+        ''').fetchall()
+        conn.close()
+        return jsonify([dict(r) for r in rows])
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+# ─── API CLIENTES ─────────────────────────────────────────────────────────────
+
+@app.route('/api/clientes', methods=['GET'])
+def api_clientes_list():
+    try:
+        conn = get_db()
+        rows = conn.execute('SELECT * FROM clientes ORDER BY ultimo_uso DESC LIMIT 100').fetchall()
+        conn.close()
+        return jsonify([dict(r) for r in rows])
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/clientes', methods=['POST'])
+def api_clientes_create():
+    try:
+        d = request.json or {}
+        nome = (d.get('nome') or '').strip()
+        if not nome:
+            return jsonify({'error': 'Nome obrigatório'}), 400
+        cpf = (d.get('cpf') or '').strip()
+        endereco = (d.get('endereco') or '').strip()
+        cep = (d.get('cep') or '').strip()
+        conn = get_db()
+        if cpf:
+            existing = conn.execute('SELECT id FROM clientes WHERE cpf=?', (cpf,)).fetchone()
+            if existing:
+                conn.execute('''UPDATE clientes SET nome=?,endereco=?,cep=?,
+                    ultimo_uso=datetime('now','localtime') WHERE cpf=?''',
+                    (nome, endereco, cep, cpf))
+            else:
+                conn.execute('''INSERT INTO clientes (nome,cpf,endereco,cep,ultimo_uso)
+                    VALUES (?,?,?,?,datetime('now','localtime'))''',
+                    (nome, cpf, endereco, cep))
+        else:
+            conn.execute('''INSERT INTO clientes (nome,cpf,endereco,cep,ultimo_uso)
+                VALUES (?,?,?,?,datetime('now','localtime'))''',
+                (nome, cpf, endereco, cep))
+        conn.commit(); conn.close()
+        return jsonify({'ok': True})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+# ─── ADMIN API — BACKUP ───────────────────────────────────────────────────────
+
+@app.route('/admin/api/backup')
+def admin_backup():
+    try:
+        conn = get_db()
+        tables = ['users','imoveis','historico','clientes','config','funil','logs']
+        backup = {}
+        for t in tables:
+            try:
+                rows = conn.execute(f'SELECT * FROM {t}').fetchall()
+                backup[t] = [dict(r) for r in rows]
+            except Exception:
+                backup[t] = []
+        conn.close()
+        import datetime
+        fname = 'backup_litorano_' + datetime.datetime.now().strftime('%Y%m%d_%H%M%S') + '.json'
+        resp = Response(json.dumps(backup, ensure_ascii=False, indent=2),
+                        mimetype='application/json')
+        resp.headers['Content-Disposition'] = f'attachment; filename="{fname}"'
+        log_action('admin_backup')
+        return resp
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 # ─── MAIN ─────────────────────────────────────────────────────────────────────
 
