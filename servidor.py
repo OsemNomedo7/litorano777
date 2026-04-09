@@ -101,9 +101,17 @@ def sigilopay_criar_cobranca(valor_reais, descricao, nome, email, ref_id, phone=
             'Content-Type': 'application/json',
         },
     )
-    with _ureq.urlopen(req, timeout=30) as r:
-        resp = json.loads(r.read())
-    print(f"[SIGILOPAY] resposta criação PIX: {json.dumps(resp)[:400]}")
+    print(f"[SIGILOPAY] chamando {api_url}/gateway/pix/receive com pub_key={pub_key[:8]}...")
+    try:
+        with _ureq.urlopen(req, timeout=30) as r:
+            resp = json.loads(r.read())
+    except _ureq.HTTPError as e:
+        body = ''
+        try: body = e.read().decode('utf-8', errors='replace')
+        except Exception: pass
+        print(f"[SIGILOPAY ERROR] HTTP {e.code}: {body[:600]}")
+        raise Exception(f"SigiloPay {e.code}: {body[:300]}")
+    print(f"[SIGILOPAY] resposta: {json.dumps(resp)[:400]}")
     pix = resp.get('pix') or {}
     return {
         'id': resp.get('transactionId') or resp.get('id'),
@@ -402,9 +410,10 @@ def api_assinar():
         if tipo == 'vitalicio':  return None
         return (now + datetime.timedelta(days=30)).strftime('%Y-%m-%d %H:%M:%S')
 
-    # Modo teste: aprova imediatamente
+    # Modo teste: aprova imediatamente (padrão) — só chama SigiloPay se MODO_TESTE=0 E chaves configuradas
     pub_key, sec_key, _ = _get_sigilopay_creds()
-    if MODO_TESTE or not pub_key or not sec_key:
+    usar_gateway = (not MODO_TESTE) and bool(pub_key.strip()) and bool(sec_key.strip())
+    if not usar_gateway:
         expira = _expira_em(plano['tipo'])
         conn.execute('''UPDATE assinaturas SET status='ativa', external_id=?,
             pago_em=datetime('now','localtime'), expira_em=? WHERE id=?''',
