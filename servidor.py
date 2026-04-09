@@ -748,14 +748,20 @@ def api_meta_criar_campanha():
         tipo_orcamento     = d.get('tipo_orcamento', 'daily')
 
         # Targeting
-        genero_raw = d.get('genero', '0')
-        genders    = [int(genero_raw)] if genero_raw != '0' else []
-        geo        = {'countries': ['BR']}
-        cidade     = (d.get('cidade') or '').strip()
-        raio       = int(d.get('raio') or 30)
-        if cidade:
-            # Coordenadas aproximadas via nome da cidade (Meta aceita lat/lng + raio)
-            geo = {'custom_locations': [{'address_string': cidade + ', BR', 'radius': raio, 'distance_unit': 'kilometer'}]}
+        genero_raw   = d.get('genero', '0')
+        genders      = [int(genero_raw)] if genero_raw != '0' else []
+        localizacoes = d.get('localizacoes') or []
+        if localizacoes:
+            geo = {'custom_locations': [
+                {
+                    'address_string': f"{loc['cidade']}, {loc.get('estado','SP')}, Brasil",
+                    'radius':         int(loc.get('raio', 30)),
+                    'distance_unit':  'kilometer',
+                }
+                for loc in localizacoes
+            ]}
+        else:
+            geo = {'countries': ['BR']}
 
         targeting_obj = {
             'geo_locations': geo,
@@ -785,7 +791,7 @@ def api_meta_criar_campanha():
             'status':            'PAUSED',
         }
         if objetivo == 'MESSAGES':
-            adset_data['destination_type'] = 'WHATSAPP'
+            adset_data['destination_type'] = d.get('whatsapp_tipo') or 'WHATSAPP'
 
         if tipo_orcamento == 'daily':
             adset_data['daily_budget'] = orcamento_centavos
@@ -834,12 +840,15 @@ def api_meta_criar_campanha():
                 }
             else:
                 # Imagem única
+                cta_value = {'link': url_destino or 'https://litorano777.onrender.com'}
+                if objetivo == 'MESSAGES' and d.get('whatsapp_phone'):
+                    cta_value['whatsapp_number'] = d['whatsapp_phone']
                 link_data = {
                     'link':        url_destino or 'https://litorano777.onrender.com',
                     'message':     copy,
                     'name':        headline,
                     'description': desc_ad,
-                    'call_to_action': {'type': cta_type, 'value': {'link': url_destino or 'https://litorano777.onrender.com'}},
+                    'call_to_action': {'type': cta_type, 'value': cta_value},
                 }
                 if fotos:
                     link_data['picture'] = fotos[0]

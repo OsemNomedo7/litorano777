@@ -2586,9 +2586,9 @@ function anunciarImovel() {
 
   // ── ETAPA 2 — Público ─────────────────────────────────────────────────────
   document.getElementById('mnc-adset-nome').value  = `${im.nome} — Público${loc ? ' · '+loc : ''}`;
-  document.getElementById('mnc-cidade').value      = cidade;
-  document.getElementById('mnc-estado').value      = estado;
-  document.getElementById('mnc-raio').value        = '30';
+  if(estado) document.getElementById('mnc-estado').value = estado;
+  _mncLocalizacoes = cidade ? [{cidade, estado: estado || 'SP', raio: 30}] : [];
+  mncRenderCidadesTags();
   document.getElementById('mnc-idade-min').value   = '25';
   document.getElementById('mnc-idade-max').value   = '55';
   document.getElementById('mnc-genero').value      = '0';
@@ -2613,6 +2613,8 @@ Quer saber mais? Chama no WhatsApp e garante sua reserva! 👇`;
   document.getElementById('mnc-headline').value     = `${im.nome}${cidade ? ' — '+cidade : ''}`;
   document.getElementById('mnc-descricao-ad').value = info || 'Imóvel disponível para temporada';
   document.getElementById('mnc-cta').value          = 'SEND_MESSAGE';
+  if(im.whatsapp) document.getElementById('mnc-whatsapp-phone').value = im.whatsapp.replace(/\D/g,'');
+  mncToggleWhatsAppFields();
 
   // URL pública do imóvel
   const slug = im.slug || '';
@@ -2690,6 +2692,7 @@ async function toggleCampanha(id, novoStatus) {
 
 // ── WIZARD NOVA CAMPANHA ──────────────────────────────────────────────────────
 let _mncStep = 1;
+let _mncLocalizacoes = [];
 
 function abrirFormNovaCampanha() {
   const form = document.getElementById('meta-form-nova');
@@ -2744,11 +2747,77 @@ function mncAtualizarOtimizacao() {
     BRAND_AWARENESS: 'REACH', VIDEO_VIEWS: 'THRUPLAY',
   };
   document.getElementById('mnc-otimizacao').value = map[obj] || 'CONVERSATIONS';
+  mncToggleWhatsAppFields();
 }
 
-document.getElementById('mnc-posicionamento')?.addEventListener('change', function() {
-  document.getElementById('mnc-posicionamento-manual').style.display = this.value === 'manual' ? '' : 'none';
-});
+function mncTogglePosicionamento() {
+  const v = document.getElementById('mnc-posicionamento').value;
+  document.getElementById('mnc-posicionamento-manual').style.display = v === 'manual' ? '' : 'none';
+}
+
+function mncToggleWhatsAppFields() {
+  const obj  = document.getElementById('mnc-objetivo')?.value;
+  const wrap = document.getElementById('mnc-whatsapp-wrap');
+  if(wrap) wrap.style.display = obj === 'MESSAGES' ? '' : 'none';
+}
+
+function mncPreviewWaMe() {
+  const phone   = document.getElementById('mnc-whatsapp-phone').value.replace(/\D/g,'');
+  const preview = document.getElementById('mnc-wame-preview');
+  const urlEl   = document.getElementById('mnc-wame-url');
+  if(phone.length >= 10) {
+    const msg = 'Olá! Vi seu anúncio e tenho interesse. Pode me ajudar?';
+    const url = `https://wa.me/${phone}?text=${encodeURIComponent(msg)}`;
+    urlEl.textContent = url;
+    preview.style.display = '';
+  } else {
+    preview.style.display = 'none';
+  }
+}
+
+function mncAplicarWaMe() {
+  const phone = document.getElementById('mnc-whatsapp-phone').value.replace(/\D/g,'');
+  if(!phone) { alert('Informe o número do WhatsApp primeiro'); return; }
+  const msg = 'Olá! Vi seu anúncio e tenho interesse. Pode me ajudar?';
+  const url = `https://wa.me/${phone}?text=${encodeURIComponent(msg)}`;
+  document.getElementById('mnc-objetivo').value = 'TRAFFIC';
+  mncAtualizarOtimizacao();
+  document.getElementById('mnc-url-destino').value = url;
+  document.getElementById('mnc-cta').value = 'SEND_MESSAGE';
+}
+
+function mncAdicionarCidade() {
+  const cidadeInput = document.getElementById('mnc-cidade-input');
+  const raioInput   = document.getElementById('mnc-raio-input');
+  const cidade = cidadeInput.value.trim();
+  if(!cidade) return;
+  const estado = document.getElementById('mnc-estado').value;
+  const raio   = parseInt(raioInput.value) || 30;
+  _mncLocalizacoes.push({cidade, estado, raio});
+  cidadeInput.value = '';
+  mncRenderCidadesTags();
+}
+
+function mncRemoverCidade(idx) {
+  _mncLocalizacoes.splice(idx, 1);
+  mncRenderCidadesTags();
+}
+
+function mncRenderCidadesTags() {
+  const cont  = document.getElementById('mnc-cidades-tags');
+  const empty = document.getElementById('mnc-cidades-empty');
+  if(!cont) return;
+  cont.querySelectorAll('.mnc-cidade-tag').forEach(t => t.remove());
+  if(!_mncLocalizacoes.length) { if(empty) empty.style.display = ''; return; }
+  if(empty) empty.style.display = 'none';
+  _mncLocalizacoes.forEach((loc, i) => {
+    const tag = document.createElement('div');
+    tag.className = 'mnc-cidade-tag';
+    tag.style.cssText = "display:inline-flex;align-items:center;gap:5px;background:rgba(0,245,255,.08);border:1px solid rgba(0,245,255,.25);border-radius:20px;padding:3px 10px 3px 8px;font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--nc)";
+    tag.innerHTML = `📍 ${loc.cidade}/${loc.estado} · ${loc.raio}km <button onclick="mncRemoverCidade(${i})" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:14px;padding:0;margin-left:3px;line-height:1">×</button>`;
+    cont.appendChild(tag);
+  });
+}
 
 function mncToggleFormato() {
   const carousel = document.querySelector('input[name="mnc-formato"]:checked').value === 'carousel';
@@ -2832,9 +2901,8 @@ async function criarCampanha() {
     tipo_orcamento:  document.getElementById('mnc-tipo-orc').value,
     // Ad Set
     adset_nome:      document.getElementById('mnc-adset-nome').value.trim(),
-    cidade:          document.getElementById('mnc-cidade').value.trim(),
-    estado:          document.getElementById('mnc-estado').value.trim().toUpperCase(),
-    raio:            parseInt(document.getElementById('mnc-raio').value) || 30,
+    estado:          document.getElementById('mnc-estado').value,
+    localizacoes:    _mncLocalizacoes,
     idade_min:       document.getElementById('mnc-idade-min').value,
     idade_max:       document.getElementById('mnc-idade-max').value,
     genero:          document.getElementById('mnc-genero').value,
@@ -2852,6 +2920,8 @@ async function criarCampanha() {
     descricao_ad:    document.getElementById('mnc-descricao-ad').value.trim(),
     cta:             document.getElementById('mnc-cta').value,
     url_destino:     document.getElementById('mnc-url-destino').value.trim(),
+    whatsapp_phone:  document.getElementById('mnc-whatsapp-phone').value.trim(),
+    whatsapp_tipo:   document.getElementById('mnc-whatsapp-tipo').value,
   };
   const dataIni = document.getElementById('mnc-data-ini').value;
   const dataFim = document.getElementById('mnc-data-fim').value;
@@ -3050,18 +3120,39 @@ async function desconectarMeta() {
             <div class="mnc-label">NOME DO CONJUNTO DE ANÚNCIOS</div>
             <input id="mnc-adset-nome" type="text" placeholder="ex: Público Geral — SP" class="mnc-input">
           </div>
-          <div>
-            <div class="mnc-label">CIDADE / REGIÃO</div>
-            <input id="mnc-cidade" type="text" placeholder="ex: Ubatuba" class="mnc-input">
+          <div style="grid-column:1/-1">
+            <div class="mnc-label">ESTADO PRINCIPAL</div>
+            <select id="mnc-estado" class="mnc-select">
+              <option value="AC">AC — Acre</option><option value="AL">AL — Alagoas</option>
+              <option value="AP">AP — Amapá</option><option value="AM">AM — Amazonas</option>
+              <option value="BA">BA — Bahia</option><option value="CE">CE — Ceará</option>
+              <option value="DF">DF — Distrito Federal</option><option value="ES">ES — Espírito Santo</option>
+              <option value="GO">GO — Goiás</option><option value="MA">MA — Maranhão</option>
+              <option value="MT">MT — Mato Grosso</option><option value="MS">MS — Mato Grosso do Sul</option>
+              <option value="MG">MG — Minas Gerais</option><option value="PA">PA — Pará</option>
+              <option value="PB">PB — Paraíba</option><option value="PR">PR — Paraná</option>
+              <option value="PE">PE — Pernambuco</option><option value="PI">PI — Piauí</option>
+              <option value="RJ">RJ — Rio de Janeiro</option><option value="RN">RN — Rio Grande do Norte</option>
+              <option value="RS">RS — Rio Grande do Sul</option><option value="RO">RO — Rondônia</option>
+              <option value="RR">RR — Roraima</option><option value="SC">SC — Santa Catarina</option>
+              <option value="SP" selected>SP — São Paulo</option><option value="SE">SE — Sergipe</option>
+              <option value="TO">TO — Tocantins</option>
+            </select>
+            <div style="font-size:9px;color:var(--muted);margin-top:3px">Usado como padrão ao adicionar cidades. Se nenhuma cidade for adicionada, segmenta o estado inteiro.</div>
           </div>
-          <div>
-            <div class="mnc-label">ESTADO (sigla)</div>
-            <input id="mnc-estado" type="text" placeholder="ex: SP" maxlength="2" class="mnc-input" style="text-transform:uppercase">
-          </div>
-          <div>
-            <div class="mnc-label">RAIO (km)</div>
-            <input id="mnc-raio" type="number" min="1" max="80" value="30" class="mnc-input">
-            <div style="font-size:9px;color:var(--muted);margin-top:3px">Distância ao redor da cidade</div>
+          <div style="grid-column:1/-1">
+            <div class="mnc-label">CIDADES / REGIÕES</div>
+            <div style="display:flex;gap:8px;margin-bottom:8px;align-items:center;flex-wrap:wrap">
+              <input id="mnc-cidade-input" type="text" placeholder="Nome da cidade (ex: Ubatuba)" class="mnc-input" style="flex:1;min-width:140px;margin-bottom:0" onkeydown="if(event.key==='Enter'){event.preventDefault();mncAdicionarCidade()}">
+              <div style="display:flex;align-items:center;gap:4px;flex-shrink:0">
+                <input id="mnc-raio-input" type="number" min="1" max="80" value="30" class="mnc-input" style="width:70px;margin-bottom:0" title="Raio em km">
+                <span style="font-family:'Share Tech Mono',monospace;font-size:9px;color:var(--muted)">km</span>
+              </div>
+              <button onclick="mncAdicionarCidade()" style="background:rgba(0,245,255,.08);border:1px solid rgba(0,245,255,.3);color:var(--nc);font-family:'Share Tech Mono',monospace;font-size:10px;padding:8px 14px;border-radius:8px;cursor:pointer;flex-shrink:0;letter-spacing:1px">+ Adicionar</button>
+            </div>
+            <div id="mnc-cidades-tags" style="display:flex;flex-wrap:wrap;gap:6px;min-height:38px;padding:8px 10px;background:rgba(0,0,0,.3);border:1px solid rgba(255,255,255,.08);border-radius:8px;align-items:center">
+              <div id="mnc-cidades-empty" style="font-family:'Share Tech Mono',monospace;font-size:9px;color:var(--muted)">Nenhuma cidade adicionada — o estado inteiro será segmentado</div>
+            </div>
           </div>
           <div>
             <div class="mnc-label">IDADE MÍNIMA</div>
@@ -3099,7 +3190,7 @@ async function desconectarMeta() {
           </div>
           <div style="grid-column:1/-1">
             <div class="mnc-label">POSICIONAMENTOS</div>
-            <select id="mnc-posicionamento" class="mnc-select">
+            <select id="mnc-posicionamento" class="mnc-select" onchange="mncTogglePosicionamento()">
               <option value="auto">✨ Automático (Advantage+) — recomendado</option>
               <option value="manual">Manual — escolher canais</option>
             </select>
@@ -3186,6 +3277,46 @@ async function desconectarMeta() {
             <div class="mnc-label">URL DE DESTINO</div>
             <input id="mnc-url-destino" type="url" placeholder="https://..." class="mnc-input">
           </div>
+
+          <!-- WhatsApp / Mensagens — aparece quando objetivo = MESSAGES -->
+          <div id="mnc-whatsapp-wrap" style="display:none;grid-column:1/-1">
+            <div style="background:rgba(37,211,102,.04);border:1px solid rgba(37,211,102,.2);border-radius:10px;padding:16px 14px">
+              <div style="font-family:'Share Tech Mono',monospace;font-size:10px;color:#25d366;letter-spacing:1.5px;margin-bottom:12px">💬 DESTINO DA MENSAGEM</div>
+
+              <!-- Aviso sobre os dois métodos -->
+              <div style="background:rgba(255,214,10,.05);border:1px solid rgba(255,214,10,.18);border-radius:8px;padding:10px 12px;margin-bottom:14px;line-height:1.7;font-size:11px">
+                <div style="font-family:'Share Tech Mono',monospace;font-size:9px;color:var(--ny);letter-spacing:1px;margin-bottom:6px">⚠ DOIS MÉTODOS DISPONÍVEIS</div>
+                <div style="margin-bottom:4px"><span style="color:#25d366;font-weight:600">Método 1 — Objetivo MESSAGES:</span> <span style="color:var(--muted)">Requer o número cadastrado como WhatsApp Business API no Meta Business Manager. Se não estiver conectado, a campanha será rejeitada pela API.</span></div>
+                <div><span style="color:#4d9fff;font-weight:600">Método 2 — Tráfego + wa.me:</span> <span style="color:var(--muted)">Funciona com qualquer número. O clique abre o WhatsApp direto. Recomendado se o número não estiver conectado ao Meta.</span></div>
+              </div>
+
+              <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px">
+                <div>
+                  <div class="mnc-label">CANAL (Método 1)</div>
+                  <select id="mnc-whatsapp-tipo" class="mnc-select">
+                    <option value="WHATSAPP">WhatsApp</option>
+                    <option value="MESSENGER">Messenger</option>
+                    <option value="INSTAGRAM_DIRECT">Instagram Direct</option>
+                  </select>
+                </div>
+                <div>
+                  <div class="mnc-label">NÚMERO WHATSAPP</div>
+                  <input id="mnc-whatsapp-phone" type="tel" placeholder="5511999999999" class="mnc-input" oninput="mncPreviewWaMe()">
+                  <div style="font-size:9px;color:var(--muted);margin-top:3px">DDI + DDD + número, sem + ou espaços</div>
+                </div>
+              </div>
+
+              <!-- Preview wa.me -->
+              <div id="mnc-wame-preview" style="display:none;margin-top:14px;padding-top:14px;border-top:1px solid rgba(255,255,255,.06)">
+                <div style="font-family:'Share Tech Mono',monospace;font-size:9px;color:var(--muted);letter-spacing:1px;margin-bottom:6px">LINK WA.ME GERADO:</div>
+                <div id="mnc-wame-url" style="font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--nc);word-break:break-all;padding:8px 10px;background:rgba(0,0,0,.4);border-radius:6px;border:1px solid rgba(0,245,255,.12);margin-bottom:10px"></div>
+                <button onclick="mncAplicarWaMe()" style="width:100%;padding:10px;background:rgba(37,211,102,.1);border:1px solid rgba(37,211,102,.35);color:#25d366;font-family:'Share Tech Mono',monospace;font-size:10px;border-radius:8px;cursor:pointer;letter-spacing:1px;transition:.2s" onmouseover="this.style.background='rgba(37,211,102,.18)'" onmouseout="this.style.background='rgba(37,211,102,.1)'">
+                  ✅ Usar wa.me — trocar objetivo para Tráfego e preencher URL automaticamente
+                </button>
+              </div>
+            </div>
+          </div>
+
         </div>
       </div>
 
