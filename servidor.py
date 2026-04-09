@@ -99,6 +99,9 @@ def sigilopay_criar_cobranca(valor_reais, descricao, nome, email, ref_id, phone=
             'x-public-key': pub_key,
             'x-secret-key': sec_key,
             'Content-Type': 'application/json',
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+            'Accept': 'application/json',
+            'Origin': api_url.split('/api/')[0],
         },
     )
     print(f"[SIGILOPAY] chamando {api_url}/gateway/pix/receive com pub_key={pub_key[:8]}...")
