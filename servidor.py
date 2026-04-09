@@ -363,7 +363,7 @@ def planos_page():
 def api_planos_publicos():
     """Lista planos ativos com preço — acessível sem assinatura."""
     conn = get_db()
-    rows = conn.execute('SELECT id,nome,descricao,max_pdfs_mes,preco,tipo FROM planos WHERE ativo=1 ORDER BY preco').fetchall()
+    rows = conn.execute('SELECT id,nome,descricao,max_pdfs_mes,preco,tipo,checkout_url FROM planos WHERE ativo=1 ORDER BY preco').fetchall()
     conn.close()
     return jsonify([dict(r) for r in rows])
 
@@ -412,6 +412,14 @@ def api_assinar():
         if tipo == 'semanal':    return (now + datetime.timedelta(days=7)).strftime('%Y-%m-%d %H:%M:%S')
         if tipo == 'vitalicio':  return None
         return (now + datetime.timedelta(days=30)).strftime('%Y-%m-%d %H:%M:%S')
+
+    # Se o plano tem link de checkout, redireciona com o assn_id como referência
+    checkout_url = (plano['checkout_url'] or '').strip()
+    if checkout_url:
+        sep = '&' if '?' in checkout_url else '?'
+        url_final = f"{checkout_url}{sep}ref={assn_id}&client_ref={assn_id}"
+        conn.commit(); conn.close()
+        return jsonify({'ok': True, 'redirect': url_final})
 
     # Modo teste: aprova imediatamente (padrão) — só chama SigiloPay se MODO_TESTE=0 E chaves configuradas
     pub_key, sec_key, _ = _get_sigilopay_creds()
@@ -480,16 +488,30 @@ def webhook_sigilopay():
         return jsonify({'ok': True, 'ignored': True, 'event': event})
 
     # transaction.id  = ID interno da SigiloPay
-    # transaction.identifier = nosso ID passado na criação (external_reference)
+    # transaction.identifier = nosso ID passado na criação
     ext_id = transaction.get('id')
     ref_id = transaction.get('identifier')
+    # email do cliente para fallback por checkout externo
+    client_email = (data.get('client') or {}).get('email') or ''
 
     conn = get_db()
     assn = None
     if ext_id:
         assn = conn.execute('SELECT * FROM assinaturas WHERE external_id=?', (ext_id,)).fetchone()
     if not assn and ref_id:
-        assn = conn.execute('SELECT * FROM assinaturas WHERE id=?', (ref_id,)).fetchone()
+        # ref_id pode ser o assn_id direto
+        try:
+            assn = conn.execute('SELECT * FROM assinaturas WHERE id=?', (int(ref_id),)).fetchone()
+        except Exception:
+            pass
+    if not assn and client_email:
+        # Fallback: assinatura pendente mais recente do usuário com esse email
+        assn = conn.execute('''
+            SELECT a.* FROM assinaturas a
+            JOIN users u ON u.id = a.user_id
+            WHERE u.email=? AND a.status='pendente'
+            ORDER BY a.id DESC LIMIT 1
+        ''', (client_email,)).fetchone()
 
     if assn and assn['status'] != 'ativa':
         plano_tipo = conn.execute('SELECT tipo FROM planos WHERE id=?', (assn['plano_id'],)).fetchone()
@@ -1383,9 +1405,9 @@ def admin_planos_create():
         conn = get_db()
         tipo = d.get('tipo','mensal')
         if tipo not in ('semanal','mensal','vitalicio'): tipo = 'mensal'
-        cur = conn.execute('INSERT INTO planos (nome,descricao,max_pdfs_mes,preco,tipo) VALUES (?,?,?,?,?)',
+        cur = conn.execute('INSERT INTO planos (nome,descricao,max_pdfs_mes,preco,tipo,checkout_url) VALUES (?,?,?,?,?,?)',
                            (nome, d.get('descricao',''), int(d.get('max_pdfs_mes') or 0),
-                            float(d.get('preco') or 0), tipo))
+                            float(d.get('preco') or 0), tipo, d.get('checkout_url','').strip()))
         new_id = cur.lastrowid
         conn.commit(); conn.close()
         log_action('admin_criar_plano', {'nome': nome})
@@ -1401,9 +1423,9 @@ def admin_planos_edit(pid):
         conn = get_db()
         tipo = d.get('tipo','mensal')
         if tipo not in ('semanal','mensal','vitalicio'): tipo = 'mensal'
-        conn.execute('UPDATE planos SET nome=?,descricao=?,max_pdfs_mes=?,preco=?,tipo=?,ativo=? WHERE id=?',
+        conn.execute('UPDATE planos SET nome=?,descricao=?,max_pdfs_mes=?,preco=?,tipo=?,checkout_url=?,ativo=? WHERE id=?',
                      (d.get('nome'), d.get('descricao',''), int(d.get('max_pdfs_mes') or 0),
-                      float(d.get('preco') or 0), tipo, int(d.get('ativo', 1)), pid))
+                      float(d.get('preco') or 0), tipo, d.get('checkout_url','').strip(), int(d.get('ativo', 1)), pid))
         conn.commit(); conn.close()
         log_action('admin_editar_plano', {'id': pid})
         return jsonify({'ok': True})
