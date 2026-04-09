@@ -721,77 +721,149 @@ def api_meta_campanhas():
 
 @app.route('/api/meta/campanhas', methods=['POST'])
 def api_meta_criar_campanha():
-    """Cria campanha + conjunto de anúncios."""
+    """Cria Campanha + Ad Set + Ad Creative + Ad."""
     try:
         d = request.json or {}
         account = _meta_account_id()
         if not account:
             return jsonify({'error': 'Configure o ID da conta de anúncios primeiro'}), 400
 
-        # 1. Cria a Campanha
+        objetivo   = d.get('objetivo', 'MESSAGES')
+        page_id    = d.get('page_id', '')
+        formato    = d.get('formato', 'single')   # single | carousel
+
+        # ── 1. CAMPANHA ──────────────────────────────────────────────────────
         camp = _meta_post(f'{account}/campaigns', {
-            'name': d.get('nome', 'Campanha Litorano'),
-            'objective': 'MESSAGES',
-            'status': 'PAUSED',
-            'special_ad_categories': 'NONE',
+            'name':                   d.get('nome', 'Campanha Litorano'),
+            'objective':              objetivo,
+            'status':                 'PAUSED',
+            'special_ad_categories':  'NONE',
         })
         camp_id = camp.get('id')
         if not camp_id:
-            return jsonify({'error': 'Erro ao criar campanha', 'raw': camp}), 400
+            return jsonify({'error': f'Erro ao criar campanha: {camp}'}), 400
 
-        # 2. Cria o Ad Set
+        # ── 2. AD SET ────────────────────────────────────────────────────────
         orcamento_centavos = str(int(float(d.get('orcamento', 30)) * 100))
-        tipo_orcamento = d.get('tipo_orcamento', 'daily')  # daily | lifetime
+        tipo_orcamento     = d.get('tipo_orcamento', 'daily')
 
-        # Geo: se tiver estado do imóvel, filtra por estado brasileiro
-        estados_br = {
-            'AC':'Acre','AL':'Alagoas','AP':'Amapá','AM':'Amazonas','BA':'Bahia',
-            'CE':'Ceará','DF':'Distrito Federal','ES':'Espírito Santo','GO':'Goiás',
-            'MA':'Maranhão','MT':'Mato Grosso','MS':'Mato Grosso do Sul','MG':'Minas Gerais',
-            'PA':'Pará','PB':'Paraíba','PR':'Paraná','PE':'Pernambuco','PI':'Piauí',
-            'RJ':'Rio de Janeiro','RN':'Rio Grande do Norte','RS':'Rio Grande do Sul',
-            'RO':'Rondônia','RR':'Roraima','SC':'Santa Catarina','SP':'São Paulo',
-            'SE':'Sergipe','TO':'Tocantins',
-        }
-        estado_sigla = (d.get('estado') or '').strip().upper()
-        geo = {'countries': ['BR']}
-        if estado_sigla in estados_br:
-            # Meta usa key 'regions' para estados; usamos o nome completo como fallback
-            geo = {'countries': ['BR']}  # manter BR; Meta city targeting requer ID da API
+        # Targeting
+        genero_raw = d.get('genero', '0')
+        genders    = [int(genero_raw)] if genero_raw != '0' else []
+        geo        = {'countries': ['BR']}
+        cidade     = (d.get('cidade') or '').strip()
+        raio       = int(d.get('raio') or 30)
+        if cidade:
+            # Coordenadas aproximadas via nome da cidade (Meta aceita lat/lng + raio)
+            geo = {'custom_locations': [{'address_string': cidade + ', BR', 'radius': raio, 'distance_unit': 'kilometer'}]}
 
-        targeting = json.dumps({
+        targeting_obj = {
             'geo_locations': geo,
             'age_min': int(d.get('idade_min', 18)),
             'age_max': int(d.get('idade_max', 65)),
-        })
-
-        cidade_label = d.get('cidade', '')
-        estado_label = d.get('estado', '')
-        local_label  = f' [{cidade_label}/{estado_label}]' if cidade_label else ''
-        adset_data = {
-            'name': d.get('nome', 'Campanha Litorano') + local_label + ' — Conjunto',
-            'campaign_id': camp_id,
-            'billing_event': 'IMPRESSIONS',
-            'optimization_goal': 'CONVERSATIONS',
-            'bid_strategy': 'LOWEST_COST_WITHOUT_CAP',
-            'targeting': targeting,
-            'status': 'PAUSED',
-            'destination_type': 'WHATSAPP',
         }
+        if genders:
+            targeting_obj['genders'] = genders
+
+        # Posicionamentos manuais
+        if not d.get('posicionamento_auto', True):
+            pubs   = d.get('publisher_platforms') or ['facebook']
+            fb_pos = d.get('facebook_positions') or ['feed']
+            ig_pos = d.get('instagram_positions') or []
+            targeting_obj['publisher_platforms'] = list(set(pubs))
+            if fb_pos:  targeting_obj['facebook_positions']  = list(set(fb_pos))
+            if ig_pos:  targeting_obj['instagram_positions'] = list(set(ig_pos))
+
+        otimizacao = d.get('otimizacao', 'CONVERSATIONS')
+        adset_data = {
+            'name':              d.get('adset_nome') or d.get('nome', 'Conjunto') + ' — Público',
+            'campaign_id':       camp_id,
+            'billing_event':     'IMPRESSIONS',
+            'optimization_goal': otimizacao,
+            'bid_strategy':      d.get('lance', 'LOWEST_COST_WITHOUT_CAP'),
+            'targeting':         json.dumps(targeting_obj),
+            'status':            'PAUSED',
+        }
+        if objetivo == 'MESSAGES':
+            adset_data['destination_type'] = 'WHATSAPP'
+
         if tipo_orcamento == 'daily':
             adset_data['daily_budget'] = orcamento_centavos
         else:
             adset_data['lifetime_budget'] = orcamento_centavos
             if d.get('data_fim'):
-                adset_data['end_time'] = d.get('data_fim')
-
+                adset_data['end_time'] = d['data_fim']
         if d.get('data_inicio'):
-            adset_data['start_time'] = d.get('data_inicio')
+            adset_data['start_time'] = d['data_inicio']
 
         adset = _meta_post(f'{account}/adsets', adset_data)
-        log_action('meta_criar_campanha', {'camp_id': camp_id, 'nome': d.get('nome')})
-        return jsonify({'ok': True, 'campaign_id': camp_id, 'adset_id': adset.get('id')})
+        adset_id = adset.get('id')
+        if not adset_id:
+            return jsonify({'error': f'Erro ao criar conjunto: {adset}'}), 400
+
+        # ── 3. AD CREATIVE (se tiver page_id e fotos) ────────────────────────
+        ad_id = None
+        if page_id:
+            fotos       = d.get('fotos') or []
+            copy        = d.get('copy', '')
+            headline    = d.get('headline', '')
+            desc_ad     = d.get('descricao_ad', '')
+            cta_type    = d.get('cta', 'LEARN_MORE')
+            url_destino = d.get('url_destino', '')
+
+            if formato == 'carousel' and len(fotos) >= 2:
+                # Carrossel
+                titulo_tpl = d.get('carousel_titulo', '{nome}')
+                nome_imovel = d.get('imovel_nome', headline)
+                cards = []
+                for i, foto_url in enumerate(fotos[:10]):
+                    titulo_card = titulo_tpl.replace('{n}', str(i+1)).replace('{nome}', nome_imovel) or headline
+                    card = {'link': url_destino or 'https://litorano777.onrender.com', 'name': titulo_card}
+                    if foto_url:
+                        card['picture'] = foto_url
+                    cards.append(card)
+                story_spec = {
+                    'page_id': page_id,
+                    'link_data': {
+                        'link':               url_destino or 'https://litorano777.onrender.com',
+                        'message':            copy,
+                        'child_attachments':  cards,
+                        'call_to_action':     {'type': cta_type},
+                        'multi_share_optimized': True,
+                    }
+                }
+            else:
+                # Imagem única
+                link_data = {
+                    'link':        url_destino or 'https://litorano777.onrender.com',
+                    'message':     copy,
+                    'name':        headline,
+                    'description': desc_ad,
+                    'call_to_action': {'type': cta_type, 'value': {'link': url_destino or 'https://litorano777.onrender.com'}},
+                }
+                if fotos:
+                    link_data['picture'] = fotos[0]
+                story_spec = {'page_id': page_id, 'link_data': link_data}
+
+            creative = _meta_post(f'{account}/adcreatives', {
+                'name':               f'Creative — {d.get("nome","Litorano")}',
+                'object_story_spec':  json.dumps(story_spec),
+            })
+            creative_id = creative.get('id')
+
+            if creative_id:
+                ad = _meta_post(f'{account}/ads', {
+                    'name':        f'Anúncio — {d.get("nome","Litorano")}',
+                    'adset_id':    adset_id,
+                    'creative':    json.dumps({'creative_id': creative_id}),
+                    'status':      'PAUSED',
+                })
+                ad_id = ad.get('id')
+
+        log_action('meta_criar_campanha', {'camp_id': camp_id, 'nome': d.get('nome'), 'formato': formato})
+        return jsonify({'ok': True, 'campaign_id': camp_id, 'adset_id': adset_id, 'ad_id': ad_id})
     except Exception as e:
+        import traceback; traceback.print_exc()
         return jsonify({'error': str(e)}), 400
 
 @app.route('/api/meta/campanhas/<cid>/status', methods=['PUT'])
