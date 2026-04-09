@@ -2616,9 +2616,25 @@ Quer saber mais? Chama no WhatsApp e garante sua reserva! 👇`;
   if(im.whatsapp) document.getElementById('mnc-whatsapp-phone').value = im.whatsapp.replace(/\D/g,'');
   mncToggleWhatsAppFields();
 
-  // URL pública do imóvel
-  const slug = im.slug || '';
-  document.getElementById('mnc-url-destino').value = slug ? `${location.origin}/imovel/${slug}` : location.origin;
+  // URL de destino: não pré-preenche com link da plataforma para MESSAGES
+  // Para outros objetivos, use a URL pública do imóvel
+  document.getElementById('mnc-url-destino').value = '';
+
+  // Carrega localizações padrão do config (ads_localizacoes)
+  fetch('/api/config/ads').then(r=>r.json()).then(cfg => {
+    const locStr = cfg.ads_localizacoes || '';
+    const statesPart = locStr.includes('—') ? locStr.split('—')[1] : locStr;
+    const states = statesPart.split('·').map(s => s.trim()).filter(s => /^[A-Z]{2}$/.test(s));
+    if(states.length) {
+      // Mantém a cidade do imóvel se existir
+      const base = (cidade && estado) ? [{cidade, estado: estado||'SP', raio:30, tipo:'cidade'}] : [];
+      _mncLocalizacoes = [
+        ...base,
+        ...states.filter(st => !(cidade && st === estado)).map(st => ({cidade:'', estado:st, raio:0, tipo:'estado'}))
+      ];
+      mncRenderCidadesTags();
+    }
+  }).catch(()=>{});
 
   document.getElementById('meta-form-nova').scrollIntoView({behavior:'smooth', block:'start'});
 }
@@ -2813,8 +2829,10 @@ function mncRenderCidadesTags() {
   _mncLocalizacoes.forEach((loc, i) => {
     const tag = document.createElement('div');
     tag.className = 'mnc-cidade-tag';
-    tag.style.cssText = "display:inline-flex;align-items:center;gap:5px;background:rgba(0,245,255,.08);border:1px solid rgba(0,245,255,.25);border-radius:20px;padding:3px 10px 3px 8px;font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--nc)";
-    tag.innerHTML = `📍 ${loc.cidade}/${loc.estado} · ${loc.raio}km <button onclick="mncRemoverCidade(${i})" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:14px;padding:0;margin-left:3px;line-height:1">×</button>`;
+    const isEstado = loc.tipo === 'estado' || !loc.cidade;
+    tag.style.cssText = `display:inline-flex;align-items:center;gap:5px;background:${isEstado?'rgba(191,90,242,.08)':'rgba(0,245,255,.08)'};border:1px solid ${isEstado?'rgba(191,90,242,.3)':'rgba(0,245,255,.25)'};border-radius:20px;padding:3px 10px 3px 8px;font-family:'Share Tech Mono',monospace;font-size:10px;color:${isEstado?'var(--np)':'var(--nc)'}`;
+    const label = isEstado ? `🗺 ${loc.estado} — estado inteiro` : `📍 ${loc.cidade}/${loc.estado} · ${loc.raio}km`;
+    tag.innerHTML = `${label} <button onclick="mncRemoverCidade(${i})" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:14px;padding:0;margin-left:3px;line-height:1">×</button>`;
     cont.appendChild(tag);
   });
 }
@@ -2883,14 +2901,35 @@ async function criarCampanha() {
 
   const formato   = document.querySelector('input[name="mnc-formato"]:checked').value;
   const posicAuto = document.getElementById('mnc-posicionamento').value === 'auto';
-  let publisher_platforms = [], facebook_positions = [], instagram_positions = [];
+  let publisher_platforms = [], facebook_positions = [], instagram_positions = [],
+      audience_network_positions = [], messenger_positions = [];
   if(!posicAuto) {
-    if(document.getElementById('pos-feed')?.checked)         { publisher_platforms.push('facebook'); facebook_positions.push('feed'); }
-    if(document.getElementById('pos-ig-feed')?.checked)      { publisher_platforms.push('instagram'); instagram_positions.push('feed'); }
-    if(document.getElementById('pos-stories')?.checked)      { facebook_positions.push('story'); instagram_positions.push('story'); }
-    if(document.getElementById('pos-reels')?.checked)        { instagram_positions.push('reels'); }
-    if(document.getElementById('pos-marketplace')?.checked)  { facebook_positions.push('marketplace'); }
-    if(document.getElementById('pos-audience-net')?.checked) { publisher_platforms.push('audience_network'); }
+    // Facebook
+    if(document.getElementById('pos-fb-feed')?.checked)          { publisher_platforms.push('facebook'); facebook_positions.push('feed'); }
+    if(document.getElementById('pos-fb-stories')?.checked)       { publisher_platforms.push('facebook'); facebook_positions.push('story'); }
+    if(document.getElementById('pos-fb-reels')?.checked)         { publisher_platforms.push('facebook'); facebook_positions.push('facebook_reels'); }
+    if(document.getElementById('pos-fb-instream')?.checked)      { publisher_platforms.push('facebook'); facebook_positions.push('instream_video'); }
+    if(document.getElementById('pos-fb-search')?.checked)        { publisher_platforms.push('facebook'); facebook_positions.push('facebook_search'); }
+    if(document.getElementById('pos-fb-marketplace')?.checked)   { publisher_platforms.push('facebook'); facebook_positions.push('marketplace'); }
+    if(document.getElementById('pos-fb-video-feeds')?.checked)   { publisher_platforms.push('facebook'); facebook_positions.push('video_feeds'); }
+    if(document.getElementById('pos-fb-instant-article')?.checked){ publisher_platforms.push('facebook'); facebook_positions.push('instant_article'); }
+    if(document.getElementById('pos-fb-right-column')?.checked)  { publisher_platforms.push('facebook'); facebook_positions.push('right_hand_column'); }
+    // Instagram
+    if(document.getElementById('pos-ig-feed')?.checked)          { publisher_platforms.push('instagram'); instagram_positions.push('stream'); }
+    if(document.getElementById('pos-ig-stories')?.checked)       { publisher_platforms.push('instagram'); instagram_positions.push('story'); }
+    if(document.getElementById('pos-ig-reels')?.checked)         { publisher_platforms.push('instagram'); instagram_positions.push('reels'); }
+    if(document.getElementById('pos-ig-explore')?.checked)       { publisher_platforms.push('instagram'); instagram_positions.push('explore'); }
+    if(document.getElementById('pos-ig-explore-home')?.checked)  { publisher_platforms.push('instagram'); instagram_positions.push('explore_home'); }
+    if(document.getElementById('pos-ig-shopping')?.checked)      { publisher_platforms.push('instagram'); instagram_positions.push('ig_shopping'); }
+    if(document.getElementById('pos-ig-profile')?.checked)       { publisher_platforms.push('instagram'); instagram_positions.push('ig_profile_feed'); }
+    // Audience Network
+    if(document.getElementById('pos-an-native')?.checked)        { publisher_platforms.push('audience_network'); audience_network_positions.push('classic'); }
+    if(document.getElementById('pos-an-rewarded')?.checked)      { publisher_platforms.push('audience_network'); audience_network_positions.push('rewarded_video'); }
+    // Messenger
+    if(document.getElementById('pos-ms-inbox')?.checked)         { publisher_platforms.push('messenger'); messenger_positions.push('messenger_inbox'); }
+    if(document.getElementById('pos-ms-stories')?.checked)       { publisher_platforms.push('messenger'); messenger_positions.push('story'); }
+    // Deduplicar platforms
+    publisher_platforms = [...new Set(publisher_platforms)];
   }
 
   const body = {
@@ -2910,6 +2949,7 @@ async function criarCampanha() {
     lance:           document.getElementById('mnc-lance').value,
     posicionamento_auto: posicAuto,
     publisher_platforms, facebook_positions, instagram_positions,
+    audience_network_positions, messenger_positions,
     // Ad Creative
     page_id:         document.getElementById('mnc-page-id').value.trim(),
     formato,
@@ -3196,13 +3236,52 @@ async function desconectarMeta() {
             </select>
           </div>
           <div id="mnc-posicionamento-manual" style="grid-column:1/-1;display:none">
-            <div style="display:flex;flex-wrap:wrap;gap:10px;padding:12px;background:rgba(0,0,0,.3);border-radius:8px;border:1px solid rgba(255,255,255,.08)">
-              <label style="display:flex;align-items:center;gap:6px;font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--text);cursor:pointer"><input type="checkbox" id="pos-feed" checked> Feed Facebook</label>
-              <label style="display:flex;align-items:center;gap:6px;font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--text);cursor:pointer"><input type="checkbox" id="pos-ig-feed" checked> Feed Instagram</label>
-              <label style="display:flex;align-items:center;gap:6px;font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--text);cursor:pointer"><input type="checkbox" id="pos-stories"> Stories</label>
-              <label style="display:flex;align-items:center;gap:6px;font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--text);cursor:pointer"><input type="checkbox" id="pos-reels"> Reels</label>
-              <label style="display:flex;align-items:center;gap:6px;font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--text);cursor:pointer"><input type="checkbox" id="pos-marketplace"> Marketplace</label>
-              <label style="display:flex;align-items:center;gap:6px;font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--text);cursor:pointer"><input type="checkbox" id="pos-audience-net"> Audience Network</label>
+            <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:14px;padding:14px;background:rgba(0,0,0,.3);border-radius:8px;border:1px solid rgba(255,255,255,.08)">
+
+              <!-- Facebook -->
+              <div>
+                <div style="font-family:'Share Tech Mono',monospace;font-size:9px;color:#1877f2;letter-spacing:1.5px;margin-bottom:8px;padding-bottom:5px;border-bottom:1px solid rgba(24,119,242,.2)">FACEBOOK</div>
+                <div style="display:flex;flex-direction:column;gap:5px">
+                  <label style="display:flex;align-items:center;gap:7px;font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--text);cursor:pointer"><input type="checkbox" id="pos-fb-feed" checked> Feed</label>
+                  <label style="display:flex;align-items:center;gap:7px;font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--text);cursor:pointer"><input type="checkbox" id="pos-fb-stories" checked> Stories</label>
+                  <label style="display:flex;align-items:center;gap:7px;font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--text);cursor:pointer"><input type="checkbox" id="pos-fb-reels" checked> Reels</label>
+                  <label style="display:flex;align-items:center;gap:7px;font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--text);cursor:pointer"><input type="checkbox" id="pos-fb-instream"> In-stream (vídeos e Reels)</label>
+                  <label style="display:flex;align-items:center;gap:7px;font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--text);cursor:pointer"><input type="checkbox" id="pos-fb-search"> Resultados de pesquisa</label>
+                  <label style="display:flex;align-items:center;gap:7px;font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--text);cursor:pointer"><input type="checkbox" id="pos-fb-marketplace"> Marketplace</label>
+                  <label style="display:flex;align-items:center;gap:7px;font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--text);cursor:pointer"><input type="checkbox" id="pos-fb-video-feeds"> Feeds de vídeo</label>
+                  <label style="display:flex;align-items:center;gap:7px;font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--text);cursor:pointer"><input type="checkbox" id="pos-fb-instant-article"> Artigos instantâneos</label>
+                  <label style="display:flex;align-items:center;gap:7px;font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--text);cursor:pointer"><input type="checkbox" id="pos-fb-right-column"> Coluna direita</label>
+                </div>
+              </div>
+
+              <!-- Instagram -->
+              <div>
+                <div style="font-family:'Share Tech Mono',monospace;font-size:9px;color:#e1306c;letter-spacing:1.5px;margin-bottom:8px;padding-bottom:5px;border-bottom:1px solid rgba(225,48,108,.2)">INSTAGRAM</div>
+                <div style="display:flex;flex-direction:column;gap:5px">
+                  <label style="display:flex;align-items:center;gap:7px;font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--text);cursor:pointer"><input type="checkbox" id="pos-ig-feed" checked> Feed</label>
+                  <label style="display:flex;align-items:center;gap:7px;font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--text);cursor:pointer"><input type="checkbox" id="pos-ig-stories" checked> Stories</label>
+                  <label style="display:flex;align-items:center;gap:7px;font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--text);cursor:pointer"><input type="checkbox" id="pos-ig-reels" checked> Reels</label>
+                  <label style="display:flex;align-items:center;gap:7px;font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--text);cursor:pointer"><input type="checkbox" id="pos-ig-explore"> Explorar</label>
+                  <label style="display:flex;align-items:center;gap:7px;font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--text);cursor:pointer"><input type="checkbox" id="pos-ig-explore-home"> Página inicial Explorar</label>
+                  <label style="display:flex;align-items:center;gap:7px;font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--text);cursor:pointer"><input type="checkbox" id="pos-ig-shopping"> Compras</label>
+                  <label style="display:flex;align-items:center;gap:7px;font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--text);cursor:pointer"><input type="checkbox" id="pos-ig-profile"> Feed do perfil</label>
+                </div>
+              </div>
+
+              <!-- Audience Network + Messenger -->
+              <div>
+                <div style="font-family:'Share Tech Mono',monospace;font-size:9px;color:var(--np);letter-spacing:1.5px;margin-bottom:8px;padding-bottom:5px;border-bottom:1px solid rgba(191,90,242,.2)">AUDIENCE NETWORK</div>
+                <div style="display:flex;flex-direction:column;gap:5px;margin-bottom:14px">
+                  <label style="display:flex;align-items:center;gap:7px;font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--text);cursor:pointer"><input type="checkbox" id="pos-an-native"> Nativo, banner e intersticial</label>
+                  <label style="display:flex;align-items:center;gap:7px;font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--text);cursor:pointer"><input type="checkbox" id="pos-an-rewarded"> Vídeos premiados</label>
+                </div>
+                <div style="font-family:'Share Tech Mono',monospace;font-size:9px;color:#0084ff;letter-spacing:1.5px;margin-bottom:8px;padding-bottom:5px;border-bottom:1px solid rgba(0,132,255,.2)">MESSENGER</div>
+                <div style="display:flex;flex-direction:column;gap:5px">
+                  <label style="display:flex;align-items:center;gap:7px;font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--text);cursor:pointer"><input type="checkbox" id="pos-ms-inbox"> Caixa de entrada</label>
+                  <label style="display:flex;align-items:center;gap:7px;font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--text);cursor:pointer"><input type="checkbox" id="pos-ms-stories"> Stories</label>
+                </div>
+              </div>
+
             </div>
           </div>
         </div>

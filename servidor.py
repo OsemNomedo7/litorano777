@@ -750,16 +750,35 @@ def api_meta_criar_campanha():
         # Targeting
         genero_raw   = d.get('genero', '0')
         genders      = [int(genero_raw)] if genero_raw != '0' else []
+        _CAPITAIS = {
+            'AC':'Rio Branco','AL':'Maceió','AP':'Macapá','AM':'Manaus','BA':'Salvador',
+            'CE':'Fortaleza','DF':'Brasília','ES':'Vitória','GO':'Goiânia','MA':'São Luís',
+            'MT':'Cuiabá','MS':'Campo Grande','MG':'Belo Horizonte','PA':'Belém',
+            'PB':'João Pessoa','PR':'Curitiba','PE':'Recife','PI':'Teresina',
+            'RJ':'Rio de Janeiro','RN':'Natal','RS':'Porto Alegre','RO':'Porto Velho',
+            'RR':'Boa Vista','SC':'Florianópolis','SP':'São Paulo','SE':'Aracaju','TO':'Palmas',
+        }
         localizacoes = d.get('localizacoes') or []
         if localizacoes:
-            geo = {'custom_locations': [
-                {
-                    'address_string': f"{loc['cidade']}, {loc.get('estado','SP')}, Brasil",
-                    'radius':         int(loc.get('raio', 30)),
-                    'distance_unit':  'kilometer',
-                }
-                for loc in localizacoes
-            ]}
+            custom_locs = []
+            for loc in localizacoes:
+                cidade = (loc.get('cidade') or '').strip()
+                estado = (loc.get('estado') or 'BR').strip().upper()
+                if cidade:
+                    custom_locs.append({
+                        'address_string': f"{cidade}, {estado}, Brasil",
+                        'radius':         int(loc.get('raio') or 30),
+                        'distance_unit':  'kilometer',
+                    })
+                else:
+                    # Estado inteiro — usa capital + raio grande
+                    capital = _CAPITAIS.get(estado, estado)
+                    custom_locs.append({
+                        'address_string': f"{capital}, {estado}, Brasil",
+                        'radius':         500,
+                        'distance_unit':  'kilometer',
+                    })
+            geo = {'custom_locations': custom_locs}
         else:
             geo = {'countries': ['BR']}
 
@@ -773,12 +792,16 @@ def api_meta_criar_campanha():
 
         # Posicionamentos manuais
         if not d.get('posicionamento_auto', True):
-            pubs   = d.get('publisher_platforms') or ['facebook']
-            fb_pos = d.get('facebook_positions') or ['feed']
-            ig_pos = d.get('instagram_positions') or []
+            pubs    = d.get('publisher_platforms') or ['facebook']
+            fb_pos  = d.get('facebook_positions') or ['feed']
+            ig_pos  = d.get('instagram_positions') or []
+            an_pos  = d.get('audience_network_positions') or []
+            ms_pos  = d.get('messenger_positions') or []
             targeting_obj['publisher_platforms'] = list(set(pubs))
-            if fb_pos:  targeting_obj['facebook_positions']  = list(set(fb_pos))
-            if ig_pos:  targeting_obj['instagram_positions'] = list(set(ig_pos))
+            if fb_pos:  targeting_obj['facebook_positions']          = list(set(fb_pos))
+            if ig_pos:  targeting_obj['instagram_positions']         = list(set(ig_pos))
+            if an_pos:  targeting_obj['audience_network_positions']  = list(set(an_pos))
+            if ms_pos:  targeting_obj['messenger_positions']         = list(set(ms_pos))
 
         otimizacao = d.get('otimizacao', 'CONVERSATIONS')
         adset_data = {
