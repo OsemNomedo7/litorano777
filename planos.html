@@ -12,6 +12,11 @@ body{font-family:'Segoe UI',sans-serif;background:var(--bg);color:var(--text);mi
   background-image:linear-gradient(rgba(0,245,255,.018) 1px,transparent 1px),linear-gradient(90deg,rgba(0,245,255,.018) 1px,transparent 1px);
   background-size:44px 44px}
 
+/* LOGO WATERMARK */
+.bg-logo{position:fixed;inset:0;z-index:0;pointer-events:none;display:flex;align-items:center;justify-content:center}
+.bg-logo img{width:min(70vw,600px);opacity:.045;filter:grayscale(1) brightness(3);user-select:none}
+header,.hero,.planos-wrap,.overlay{position:relative;z-index:1}
+
 /* HEADER */
 .header{display:flex;align-items:center;justify-content:space-between;padding:20px 40px;border-bottom:1px solid rgba(0,245,255,.08);background:rgba(7,7,26,.95);backdrop-filter:blur(12px);position:sticky;top:0;z-index:10}
 .header-logo img{height:36px}
@@ -74,6 +79,8 @@ body{font-family:'Segoe UI',sans-serif;background:var(--bg);color:var(--text);mi
 </style>
 </head>
 <body>
+
+<div class="bg-logo"><img src="/logo" alt=""></div>
 
 <header class="header">
   <div class="header-logo"><img src="/logo" alt="LITORANO"></div>
