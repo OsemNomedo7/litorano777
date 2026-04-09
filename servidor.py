@@ -1416,6 +1416,26 @@ def admin_users_edit(uid):
             conn.close()
             return jsonify({'error': 'Senha mínimo 6 caracteres'}), 400
         conn.execute('UPDATE users SET pwd_hash=? WHERE id=?', (h(senha), uid))
+    # Plano definido manualmente pelo admin → ativa assinatura na tabela
+    if plano_id:
+        plano = conn.execute('SELECT tipo FROM planos WHERE id=?', (plano_id,)).fetchone()
+        expira = None
+        if plano:
+            tipo = plano['tipo']
+            if tipo == 'semanal':
+                expira = conn.execute("SELECT datetime('now','+7 days','localtime')").fetchone()[0]
+            elif tipo == 'mensal':
+                expira = conn.execute("SELECT datetime('now','+30 days','localtime')").fetchone()[0]
+            # vitalicio → expira_em = NULL
+        # Cancela assinaturas ativas anteriores
+        conn.execute("UPDATE assinaturas SET status='cancelada' WHERE user_id=? AND status='ativa'", (uid,))
+        # Cria nova assinatura ativa
+        conn.execute('''INSERT INTO assinaturas (user_id, plano_id, status, valor, pago_em, expira_em)
+            VALUES (?, ?, 'ativa', 0, datetime('now','localtime'), ?)''',
+            (uid, plano_id, expira))
+    elif plano_id is None and 'plano_id' in d:
+        # Admin removeu o plano → cancela assinatura ativa
+        conn.execute("UPDATE assinaturas SET status='cancelada' WHERE user_id=? AND status='ativa'", (uid,))
     conn.commit(); conn.close()
     log_action('admin_editar_user', {'user_id': uid})
     return jsonify({'ok': True})
