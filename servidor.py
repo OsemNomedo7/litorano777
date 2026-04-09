@@ -38,17 +38,58 @@ def _get_meta_app_creds():
         return _META_APP_ID_ENV, _META_APP_SECRET_ENV
 
 # ─── SIGILOPAY CONFIG ─────────────────────────────────────────────────────────
-# Configure estas variáveis no ambiente de produção (.env ou painel do Render)
-SIGILOPAY_TOKEN          = os.environ.get('SIGILOPAY_TOKEN', '')
+SIGILOPAY_CLIENT_ID      = os.environ.get('SIGILOPAY_CLIENT_ID', '')
+SIGILOPAY_CLIENT_SECRET  = os.environ.get('SIGILOPAY_CLIENT_SECRET', '')
 SIGILOPAY_API_URL        = os.environ.get('SIGILOPAY_API_URL', 'https://api.sigilopay.com.br/v1')
 SIGILOPAY_WEBHOOK_SECRET = os.environ.get('SIGILOPAY_WEBHOOK_SECRET', '')
 APP_BASE_URL             = os.environ.get('APP_BASE_URL', 'http://localhost:5000')
 # MODO_TESTE=1 aprova pagamentos automaticamente sem chamar a API real
 MODO_TESTE               = os.environ.get('MODO_TESTE', '1') == '1'
 
+# Cache do Bearer token em memória (evita pedir novo token a cada cobrança)
+_sigilo_token_cache = {'token': None, 'expires': 0}
+
+def _get_sigilopay_creds():
+    """Lê client_id e client_secret do banco (admin config), com fallback em env vars."""
+    try:
+        conn = get_db()
+        rows = conn.execute(
+            "SELECT chave, valor FROM config WHERE chave IN ('sigilopay_client_id','sigilopay_client_secret','sigilopay_api_url')"
+        ).fetchall()
+        conn.close()
+        cfg = {r['chave']: r['valor'] for r in rows}
+        cid     = cfg.get('sigilopay_client_id')     or SIGILOPAY_CLIENT_ID
+        csecret = cfg.get('sigilopay_client_secret')  or SIGILOPAY_CLIENT_SECRET
+        api_url = cfg.get('sigilopay_api_url')        or SIGILOPAY_API_URL
+        return cid, csecret, api_url
+    except Exception:
+        return SIGILOPAY_CLIENT_ID, SIGILOPAY_CLIENT_SECRET, SIGILOPAY_API_URL
+
+def _sigilopay_bearer_token():
+    """Obtém Bearer token via OAuth2 client_credentials, com cache em memória."""
+    import time
+    global _sigilo_token_cache
+    if _sigilo_token_cache['token'] and time.time() < _sigilo_token_cache['expires']:
+        return _sigilo_token_cache['token']
+    cid, csecret, api_url = _get_sigilopay_creds()
+    payload = json.dumps({'grant_type': 'client_credentials',
+                          'client_id': cid, 'client_secret': csecret}).encode()
+    req = _ureq.Request(
+        f'{api_url}/oauth/token',
+        data=payload,
+        headers={'Content-Type': 'application/json'},
+    )
+    with _ureq.urlopen(req, timeout=15) as r:
+        resp = json.loads(r.read())
+    token = resp.get('access_token') or resp.get('token')
+    expires_in = int(resp.get('expires_in', 3600))
+    _sigilo_token_cache = {'token': token, 'expires': time.time() + expires_in - 60}
+    return token
+
 def sigilopay_criar_cobranca(valor_reais, descricao, nome, email, ref_id):
-    """Cria cobrança PIX via SigiloPay. Ajuste os campos conforme a documentação da sua conta."""
-    if MODO_TESTE or not SIGILOPAY_TOKEN:
+    """Cria cobrança PIX via SigiloPay usando OAuth2 client_credentials."""
+    cid, csecret, api_url = _get_sigilopay_creds()
+    if MODO_TESTE or not cid or not csecret:
         return {
             'id': f'teste_{ref_id}',
             'pix_code': '00020126580014BR.GOV.BCB.PIX0136TESTE-SIGILOPAY-PIX-CODE-AQUI5204000053039865802BR5913LITORANO SAS6009SAO PAULO62070503***6304ABCD',
@@ -56,22 +97,23 @@ def sigilopay_criar_cobranca(valor_reais, descricao, nome, email, ref_id):
             'payment_url': None,
             '_teste': True,
         }
+    base_url = _get_app_base_url()
+    token = _sigilopay_bearer_token()
     payload = json.dumps({
         'amount': int(round(valor_reais * 100)),   # centavos
         'description': descricao,
         'payment_method': 'pix',
         'customer': {'name': nome, 'email': email or ''},
         'external_reference': str(ref_id),
-        'callback_url': f'{APP_BASE_URL}/webhook/sigilopay',
+        'callback_url': f'{base_url}/webhook/sigilopay',
     }).encode()
     req = _ureq.Request(
-        f'{SIGILOPAY_API_URL}/charges',
+        f'{api_url}/charges',
         data=payload,
-        headers={'Authorization': f'Bearer {SIGILOPAY_TOKEN}', 'Content-Type': 'application/json'},
+        headers={'Authorization': f'Bearer {token}', 'Content-Type': 'application/json'},
     )
     with _ureq.urlopen(req, timeout=30) as r:
         resp = json.loads(r.read())
-    # Adapte os campos abaixo conforme o retorno real da SigiloPay
     return {
         'id': resp.get('id') or resp.get('charge_id') or resp.get('transaction_id'),
         'pix_code': (resp.get('pix') or {}).get('code') or resp.get('pix_code') or resp.get('qr_code'),
@@ -777,21 +819,25 @@ def admin_meta_app_config_set():
 @app.route('/admin/api/webhook-config', methods=['GET'])
 def admin_webhook_config_get():
     conn = get_db()
-    rows = conn.execute("SELECT chave, valor FROM config WHERE chave LIKE 'webhook_%' OR chave LIKE 'sigilopay_%'").fetchall()
+    rows = conn.execute("SELECT chave, valor FROM config WHERE chave LIKE 'webhook_%' OR chave LIKE 'sigilopay_%' OR chave='app_base_url'").fetchall()
     conn.close()
     cfg = {r['chave']: r['valor'] for r in rows}
-    cfg['webhook_url'] = f'{APP_BASE_URL}/webhook/sigilopay'
+    base = cfg.get('app_base_url') or APP_BASE_URL
+    cfg['webhook_url'] = f'{base}/webhook/sigilopay'
     return jsonify(cfg)
 
 @app.route('/admin/api/webhook-config', methods=['PUT'])
 def admin_webhook_config_set():
     d = request.json or {}
-    allowed = {'webhook_secret', 'sigilopay_api_url', 'sigilopay_token', 'app_base_url'}
+    allowed = {'webhook_secret', 'sigilopay_api_url', 'sigilopay_client_id', 'sigilopay_client_secret', 'app_base_url'}
     conn = get_db()
     for k, v in d.items():
         if k in allowed:
             conn.execute("INSERT OR REPLACE INTO config (chave,valor,atualizado_em) VALUES (?,?,datetime('now','localtime'))", (k, v))
     conn.commit(); conn.close()
+    # Invalida cache do token ao trocar credenciais
+    global _sigilo_token_cache
+    _sigilo_token_cache = {'token': None, 'expires': 0}
     log_action('admin_webhook_config')
     return jsonify({'ok': True})
 

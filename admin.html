@@ -388,8 +388,12 @@ select.f-input option{background:#0a0a1a}
               <div style="font-size:10px;color:var(--muted);margin-top:4px">Usado para gerar o link do webhook e os callbacks do Meta Ads</div>
             </div>
             <div class="fg-full">
-              <label class="f-label">Token da API SigiloPay</label>
-              <input class="f-input" id="wh-token" placeholder="seu_token_aqui" type="password" autocomplete="off">
+              <label class="f-label">Client ID — SigiloPay</label>
+              <input class="f-input" id="wh-client-id" placeholder="seu_client_id_aqui" autocomplete="off">
+            </div>
+            <div class="fg-full">
+              <label class="f-label">Client Secret — SigiloPay</label>
+              <input class="f-input" id="wh-client-secret" placeholder="seu_client_secret_aqui" type="password" autocomplete="off">
             </div>
             <div class="fg-full">
               <label class="f-label">URL da API SigiloPay</label>
@@ -1293,23 +1297,24 @@ function copiarMetaCallbackUrl() {
 async function loadWebhook() {
   const d = await api('/admin/api/webhook-config');
   document.getElementById('wh-url-display').textContent = d.webhook_url || '—';
-  document.getElementById('wh-base-url').value  = d.app_base_url || '';
-  document.getElementById('wh-token').value      = d.sigilopay_token || '';
-  document.getElementById('wh-api-url').value    = d.sigilopay_api_url || '';
-  document.getElementById('wh-secret').value     = d.webhook_secret || '';
+  document.getElementById('wh-base-url').value    = d.app_base_url || '';
+  document.getElementById('wh-client-id').value   = d.sigilopay_client_id || '';
+  document.getElementById('wh-client-secret').value = d.sigilopay_client_secret || '';
+  document.getElementById('wh-api-url').value     = d.sigilopay_api_url || '';
+  document.getElementById('wh-secret').value      = d.webhook_secret || '';
 }
 
 async function salvarWebhook() {
   const body = {
-    app_base_url:    document.getElementById('wh-base-url').value.trim().replace(/\/$/, ''),
-    sigilopay_token: document.getElementById('wh-token').value.trim(),
-    sigilopay_api_url: document.getElementById('wh-api-url').value.trim(),
-    webhook_secret:  document.getElementById('wh-secret').value.trim(),
+    app_base_url:           document.getElementById('wh-base-url').value.trim().replace(/\/$/, ''),
+    sigilopay_client_id:    document.getElementById('wh-client-id').value.trim(),
+    sigilopay_client_secret:document.getElementById('wh-client-secret').value.trim(),
+    sigilopay_api_url:      document.getElementById('wh-api-url').value.trim(),
+    webhook_secret:         document.getElementById('wh-secret').value.trim(),
   };
   const d = await api('/admin/api/webhook-config', 'PUT', body);
   if(d.error) { toast(d.error, true); return; }
   toast('✔ Configurações salvas!');
-  // Atualiza URL exibida
   if(body.app_base_url) document.getElementById('wh-url-display').textContent = body.app_base_url+'/webhook/sigilopay';
 }
 
