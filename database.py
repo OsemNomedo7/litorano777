@@ -45,25 +45,22 @@ class _TCursor:
     def _req(self, stmts):
         requests = [{"type": "execute", "stmt": s} for s in stmts]
         requests.append({"type": "close"})
-        payload = {"baton": None, "requests": requests}
-        body = json.dumps(payload).encode('utf-8')
+        body = json.dumps({"requests": requests}, ensure_ascii=False).encode('utf-8')
         req  = urllib.request.Request(self._url, data=body, headers={
             'Authorization': f'Bearer {self._token}',
-            'Content-Type':  'application/json',
-            'Content-Length': str(len(body)),
+            'Content-Type':  'application/json; charset=utf-8',
         })
         try:
             with urllib.request.urlopen(req, timeout=30) as r:
-                return json.loads(r.read())
+                return json.loads(r.read().decode('utf-8'))
         except urllib.error.HTTPError as e:
             err_body = ''
             try: err_body = e.read().decode('utf-8', errors='replace')
             except Exception: pass
-            # Log nos Render logs
-            print(f"[TURSO ERROR] HTTP {e.code} | URL: {self._url}")
-            print(f"[TURSO ERROR] Body enviado: {body.decode('utf-8')[:500]}")
-            print(f"[TURSO ERROR] Resposta: {err_body[:500]}")
-            raise Exception(f"Turso {e.code}: {err_body[:300]}")
+            print(f"[TURSO ERROR] HTTP {e.code} url={self._url}")
+            print(f"[TURSO ERROR] sent={body.decode('utf-8', errors='replace')[:600]}")
+            print(f"[TURSO ERROR] resp={err_body[:600]}")
+            raise Exception(f"Turso {e.code}: {err_body[:400]}")
 
     def execute(self, sql, params=()):
         stmt = {"sql": sql, "args": [_turso_arg(p) for p in params]}
