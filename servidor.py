@@ -38,59 +38,36 @@ def _get_meta_app_creds():
         return _META_APP_ID_ENV, _META_APP_SECRET_ENV
 
 # ─── SIGILOPAY CONFIG ─────────────────────────────────────────────────────────
-SIGILOPAY_CLIENT_ID      = os.environ.get('SIGILOPAY_CLIENT_ID', '')
-SIGILOPAY_CLIENT_SECRET  = os.environ.get('SIGILOPAY_CLIENT_SECRET', '')
-SIGILOPAY_API_URL        = os.environ.get('SIGILOPAY_API_URL', 'https://api.sigilopay.com.br/v1')
+# Autenticação via headers: x-public-key e x-secret-key em todas as requisições
+SIGILOPAY_PUBLIC_KEY     = os.environ.get('SIGILOPAY_PUBLIC_KEY', '')
+SIGILOPAY_SECRET_KEY     = os.environ.get('SIGILOPAY_SECRET_KEY', '')
+SIGILOPAY_API_URL        = os.environ.get('SIGILOPAY_API_URL', 'https://app.sigilopay.com.br/api/v1')
 SIGILOPAY_WEBHOOK_SECRET = os.environ.get('SIGILOPAY_WEBHOOK_SECRET', '')
 APP_BASE_URL             = os.environ.get('APP_BASE_URL', 'http://localhost:5000')
 # MODO_TESTE=1 aprova pagamentos automaticamente sem chamar a API real
 MODO_TESTE               = os.environ.get('MODO_TESTE', '1') == '1'
 
-# Cache do Bearer token em memória (evita pedir novo token a cada cobrança)
-_sigilo_token_cache = {'token': None, 'expires': 0}
-
 def _get_sigilopay_creds():
-    """Lê client_id e client_secret do banco (admin config), com fallback em env vars."""
+    """Lê chave pública e privada do banco (admin config), com fallback em env vars."""
     try:
         conn = get_db()
         rows = conn.execute(
-            "SELECT chave, valor FROM config WHERE chave IN ('sigilopay_client_id','sigilopay_client_secret','sigilopay_api_url')"
+            "SELECT chave, valor FROM config WHERE chave IN ('sigilopay_public_key','sigilopay_secret_key','sigilopay_api_url')"
         ).fetchall()
         conn.close()
-        cfg = {r['chave']: r['valor'] for r in rows}
-        cid     = cfg.get('sigilopay_client_id')     or SIGILOPAY_CLIENT_ID
-        csecret = cfg.get('sigilopay_client_secret')  or SIGILOPAY_CLIENT_SECRET
-        api_url = cfg.get('sigilopay_api_url')        or SIGILOPAY_API_URL
-        return cid, csecret, api_url
+        cfg     = {r['chave']: r['valor'] for r in rows}
+        pub_key = cfg.get('sigilopay_public_key') or SIGILOPAY_PUBLIC_KEY
+        sec_key = cfg.get('sigilopay_secret_key') or SIGILOPAY_SECRET_KEY
+        api_url = cfg.get('sigilopay_api_url')    or SIGILOPAY_API_URL
+        return pub_key, sec_key, api_url
     except Exception:
-        return SIGILOPAY_CLIENT_ID, SIGILOPAY_CLIENT_SECRET, SIGILOPAY_API_URL
-
-def _sigilopay_bearer_token():
-    """Obtém Bearer token via OAuth2 client_credentials, com cache em memória."""
-    import time
-    global _sigilo_token_cache
-    if _sigilo_token_cache['token'] and time.time() < _sigilo_token_cache['expires']:
-        return _sigilo_token_cache['token']
-    cid, csecret, api_url = _get_sigilopay_creds()
-    payload = json.dumps({'grant_type': 'client_credentials',
-                          'client_id': cid, 'client_secret': csecret}).encode()
-    req = _ureq.Request(
-        f'{api_url}/oauth/token',
-        data=payload,
-        headers={'Content-Type': 'application/json'},
-    )
-    with _ureq.urlopen(req, timeout=15) as r:
-        resp = json.loads(r.read())
-    token = resp.get('access_token') or resp.get('token')
-    expires_in = int(resp.get('expires_in', 3600))
-    _sigilo_token_cache = {'token': token, 'expires': time.time() + expires_in - 60}
-    return token
+        return SIGILOPAY_PUBLIC_KEY, SIGILOPAY_SECRET_KEY, SIGILOPAY_API_URL
 
 def sigilopay_criar_cobranca(valor_reais, descricao, nome, email, ref_id, phone=None, document=None):
-    """Cria cobrança PIX via SigiloPay usando OAuth2 client_credentials."""
+    """Cria cobrança PIX via SigiloPay (auth por headers x-public-key / x-secret-key)."""
     import datetime as _dt
-    cid, csecret, api_url = _get_sigilopay_creds()
-    if MODO_TESTE or not cid or not csecret:
+    pub_key, sec_key, api_url = _get_sigilopay_creds()
+    if MODO_TESTE or not pub_key or not sec_key:
         return {
             'id': f'teste_{ref_id}',
             'pix_code': '00020126580014BR.GOV.BCB.PIX0136TESTE-SIGILOPAY-PIX-CODE-AQUI5204000053039865802BR5913LITORANO SAS6009SAO PAULO62070503***6304ABCD',
@@ -99,7 +76,6 @@ def sigilopay_criar_cobranca(valor_reais, descricao, nome, email, ref_id, phone=
             '_teste': True,
         }
     base_url = _get_app_base_url()
-    token = _sigilopay_bearer_token()
     due_date = (_dt.date.today() + _dt.timedelta(days=1)).strftime('%Y-%m-%d')
     payload = json.dumps({
         'identifier': str(ref_id),
@@ -119,7 +95,11 @@ def sigilopay_criar_cobranca(valor_reais, descricao, nome, email, ref_id, phone=
     req = _ureq.Request(
         f'{api_url}/gateway/pix/receive',
         data=payload,
-        headers={'Authorization': f'Bearer {token}', 'Content-Type': 'application/json'},
+        headers={
+            'x-public-key': pub_key,
+            'x-secret-key': sec_key,
+            'Content-Type': 'application/json',
+        },
     )
     with _ureq.urlopen(req, timeout=30) as r:
         resp = json.loads(r.read())
@@ -246,6 +226,10 @@ input:focus{border-color:rgba(0,245,255,.45);box-shadow:0 0 0 3px rgba(0,245,255
     <input type="password" id="c-senha" placeholder="mínimo 6 caracteres">
     <label class="f-label">Confirmar Senha</label>
     <input type="password" id="c-confirm" placeholder="repita a senha">
+    <label class="f-label">CPF</label>
+    <input type="text" id="c-cpf" placeholder="000.000.000-00" autocomplete="off" maxlength="14" oninput="mascaraCPF(this)">
+    <label class="f-label">Telefone</label>
+    <input type="text" id="c-phone" placeholder="(11) 99999-9999" autocomplete="off" maxlength="15" oninput="mascaraTel(this)">
     <button class="btn" type="button" onclick="cadastrar()">Criar Conta</button>
     <div class="msg" id="c-msg"></div>
   </div>
@@ -258,18 +242,34 @@ function setTab(t) {
   document.getElementById('frm-login').style.display = t==='login'?'':'none';
   document.getElementById('frm-cadastro').style.display = t==='cadastro'?'':'none';
 }
+function mascaraCPF(el){
+  let v=el.value.replace(/\D/g,'').slice(0,11);
+  if(v.length>9) v=v.replace(/(\d{3})(\d{3})(\d{3})(\d+)/,'$1.$2.$3-$4');
+  else if(v.length>6) v=v.replace(/(\d{3})(\d{3})(\d+)/,'$1.$2.$3');
+  else if(v.length>3) v=v.replace(/(\d{3})(\d+)/,'$1.$2');
+  el.value=v;
+}
+function mascaraTel(el){
+  let v=el.value.replace(/\D/g,'').slice(0,11);
+  if(v.length>10) v=v.replace(/(\d{2})(\d{5})(\d+)/,'($1) $2-$3');
+  else if(v.length>6) v=v.replace(/(\d{2})(\d{4})(\d+)/,'($1) $2-$3');
+  else if(v.length>2) v=v.replace(/(\d{2})(\d+)/,'($1) $2');
+  el.value=v;
+}
 async function cadastrar() {
   const nome=document.getElementById('c-nome').value.trim();
   const user=document.getElementById('c-user').value.trim();
   const email=document.getElementById('c-email').value.trim();
   const senha=document.getElementById('c-senha').value;
   const confirm=document.getElementById('c-confirm').value;
+  const cpf=document.getElementById('c-cpf').value.trim();
+  const phone=document.getElementById('c-phone').value.trim();
   const msg=document.getElementById('c-msg');
   if(!nome||!user||!senha){msg.className='msg erro';msg.textContent='Preencha todos os campos.';return;}
   if(senha!==confirm){msg.className='msg erro';msg.textContent='As senhas não coincidem.';return;}
   if(senha.length<6){msg.className='msg erro';msg.textContent='Senha mínima: 6 caracteres.';return;}
   msg.className='msg';msg.textContent='Criando conta...';
-  const r=await fetch('/api/cadastro',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({nome,username:user,email,senha})});
+  const r=await fetch('/api/cadastro',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({nome,username:user,email,senha,cpf,phone})});
   const d=await r.json();
   if(d.error){msg.className='msg erro';msg.textContent=d.error;return;}
   msg.className='msg ok';msg.textContent='Conta criada! Redirecionando...';
@@ -315,14 +315,16 @@ def api_cadastro():
     email    = (d.get('email') or '').strip()
     nome     = (d.get('nome') or '').strip()
     senha    = d.get('senha', '')
+    cpf      = (d.get('cpf') or '').strip()
+    phone    = (d.get('phone') or '').strip()
     if not username or not senha:
         return jsonify({'error': 'Login e senha obrigatórios'}), 400
     if len(senha) < 6:
         return jsonify({'error': 'Senha mínima: 6 caracteres'}), 400
     conn = get_db()
     try:
-        conn.execute('INSERT INTO users (username,pwd_hash,role,email) VALUES (?,?,?,?)',
-                     (username, h(senha), 'user', email))
+        conn.execute('INSERT INTO users (username,pwd_hash,role,email,cpf,phone) VALUES (?,?,?,?,?,?)',
+                     (username, h(senha), 'user', email, cpf, phone))
         conn.commit()
         uid = conn.execute('SELECT id FROM users WHERE username=?', (username,)).fetchone()[0]
         # Auto-login após cadastro
@@ -401,8 +403,8 @@ def api_assinar():
         return (now + datetime.timedelta(days=30)).strftime('%Y-%m-%d %H:%M:%S')
 
     # Modo teste: aprova imediatamente
-    cid, csecret, _ = _get_sigilopay_creds()
-    if MODO_TESTE or not cid or not csecret:
+    pub_key, sec_key, _ = _get_sigilopay_creds()
+    if MODO_TESTE or not pub_key or not sec_key:
         expira = _expira_em(plano['tipo'])
         conn.execute('''UPDATE assinaturas SET status='ativa', external_id=?,
             pago_em=datetime('now','localtime'), expira_em=? WHERE id=?''',
@@ -860,7 +862,7 @@ def admin_meta_app_config_set():
 @app.route('/admin/api/webhook-config', methods=['GET'])
 def admin_webhook_config_get():
     conn = get_db()
-    rows = conn.execute("SELECT chave, valor FROM config WHERE chave LIKE 'webhook_%' OR chave LIKE 'sigilopay_%' OR chave='app_base_url'").fetchall()
+    rows = conn.execute("SELECT chave, valor FROM config WHERE chave IN ('webhook_secret','sigilopay_public_key','sigilopay_secret_key','sigilopay_api_url','app_base_url')").fetchall()
     conn.close()
     cfg = {r['chave']: r['valor'] for r in rows}
     base = cfg.get('app_base_url') or APP_BASE_URL
@@ -870,15 +872,12 @@ def admin_webhook_config_get():
 @app.route('/admin/api/webhook-config', methods=['PUT'])
 def admin_webhook_config_set():
     d = request.json or {}
-    allowed = {'webhook_secret', 'sigilopay_api_url', 'sigilopay_client_id', 'sigilopay_client_secret', 'app_base_url'}
+    allowed = {'webhook_secret', 'sigilopay_api_url', 'sigilopay_public_key', 'sigilopay_secret_key', 'app_base_url'}
     conn = get_db()
     for k, v in d.items():
         if k in allowed:
             conn.execute("INSERT OR REPLACE INTO config (chave,valor,atualizado_em) VALUES (?,?,datetime('now','localtime'))", (k, v))
     conn.commit(); conn.close()
-    # Invalida cache do token ao trocar credenciais
-    global _sigilo_token_cache
-    _sigilo_token_cache = {'token': None, 'expires': 0}
     log_action('admin_webhook_config')
     return jsonify({'ok': True})
 
