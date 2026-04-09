@@ -256,6 +256,7 @@ def init_db():
             descricao    TEXT DEFAULT '',
             max_pdfs_mes INTEGER NOT NULL DEFAULT 0,
             preco        REAL NOT NULL DEFAULT 0,
+            tipo         TEXT NOT NULL DEFAULT 'mensal',
             ativo        INTEGER NOT NULL DEFAULT 1,
             criado_em    TEXT NOT NULL DEFAULT (datetime('now','localtime'))
         );
@@ -278,7 +279,7 @@ def init_db():
             conn.commit()
         except Exception:
             pass
-    # Migrações de colunas novas
+    # Migrações de colunas novas (falha silenciosa se coluna já existe)
     for migration in [
         "ALTER TABLE users ADD COLUMN plano_id INTEGER",
         "ALTER TABLE users ADD COLUMN email TEXT DEFAULT ''",
@@ -290,6 +291,15 @@ def init_db():
     ]:
         try:
             c.execute(migration)
+            conn.commit()
+        except Exception:
+            pass
+    # Verificação explícita: garante que tipo existe em planos (Turso pode ter falhado silenciosamente)
+    try:
+        c.execute("SELECT tipo FROM planos LIMIT 1")
+    except Exception:
+        try:
+            c.execute("ALTER TABLE planos ADD COLUMN tipo TEXT NOT NULL DEFAULT 'mensal'")
             conn.commit()
         except Exception:
             pass

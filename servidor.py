@@ -1277,33 +1277,41 @@ def admin_planos_list():
 
 @app.route('/admin/api/planos', methods=['POST'])
 def admin_planos_create():
-    d = request.json or {}
-    nome = d.get('nome','').strip()
-    if not nome:
-        return jsonify({'error': 'Nome obrigatório'}), 400
-    conn = get_db()
-    tipo = d.get('tipo','mensal')
-    if tipo not in ('semanal','mensal','vitalicio'): tipo = 'mensal'
-    cur = conn.execute('INSERT INTO planos (nome,descricao,max_pdfs_mes,preco,tipo) VALUES (?,?,?,?,?)',
-                       (nome, d.get('descricao',''), int(d.get('max_pdfs_mes') or 0),
-                        float(d.get('preco') or 0), tipo))
-    new_id = cur.lastrowid
-    conn.commit(); conn.close()
-    log_action('admin_criar_plano', {'nome': nome})
-    return jsonify({'ok': True, 'id': new_id})
+    try:
+        d = request.json or {}
+        nome = d.get('nome','').strip()
+        if not nome:
+            return jsonify({'error': 'Nome obrigatório'}), 400
+        conn = get_db()
+        tipo = d.get('tipo','mensal')
+        if tipo not in ('semanal','mensal','vitalicio'): tipo = 'mensal'
+        cur = conn.execute('INSERT INTO planos (nome,descricao,max_pdfs_mes,preco,tipo) VALUES (?,?,?,?,?)',
+                           (nome, d.get('descricao',''), int(d.get('max_pdfs_mes') or 0),
+                            float(d.get('preco') or 0), tipo))
+        new_id = cur.lastrowid
+        conn.commit(); conn.close()
+        log_action('admin_criar_plano', {'nome': nome})
+        return jsonify({'ok': True, 'id': new_id})
+    except Exception as e:
+        import traceback; traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
 
 @app.route('/admin/api/planos/<int:pid>', methods=['PUT'])
 def admin_planos_edit(pid):
-    d = request.json or {}
-    conn = get_db()
-    tipo = d.get('tipo','mensal')
-    if tipo not in ('semanal','mensal','vitalicio'): tipo = 'mensal'
-    conn.execute('UPDATE planos SET nome=?,descricao=?,max_pdfs_mes=?,preco=?,tipo=?,ativo=? WHERE id=?',
-                 (d.get('nome'), d.get('descricao',''), int(d.get('max_pdfs_mes') or 0),
-                  float(d.get('preco') or 0), tipo, int(d.get('ativo', 1)), pid))
-    conn.commit(); conn.close()
-    log_action('admin_editar_plano', {'id': pid})
-    return jsonify({'ok': True})
+    try:
+        d = request.json or {}
+        conn = get_db()
+        tipo = d.get('tipo','mensal')
+        if tipo not in ('semanal','mensal','vitalicio'): tipo = 'mensal'
+        conn.execute('UPDATE planos SET nome=?,descricao=?,max_pdfs_mes=?,preco=?,tipo=?,ativo=? WHERE id=?',
+                     (d.get('nome'), d.get('descricao',''), int(d.get('max_pdfs_mes') or 0),
+                      float(d.get('preco') or 0), tipo, int(d.get('ativo', 1)), pid))
+        conn.commit(); conn.close()
+        log_action('admin_editar_plano', {'id': pid})
+        return jsonify({'ok': True})
+    except Exception as e:
+        import traceback; traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
 
 @app.route('/admin/api/planos/<int:pid>', methods=['DELETE'])
 def admin_planos_delete(pid):
