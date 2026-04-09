@@ -635,6 +635,11 @@ async function api(url, method='GET', body=null) {
   const opts = {method, headers:{}};
   if(body) { opts.headers['Content-Type']='application/json'; opts.body=JSON.stringify(body); }
   const r = await fetch(url, opts);
+  if(!r.ok) {
+    let msg = `Erro ${r.status}`;
+    try { const d = await r.json(); msg = d.error || msg; } catch(e) {}
+    return {error: msg};
+  }
   return r.json();
 }
 

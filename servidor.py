@@ -337,9 +337,9 @@ def api_assinar():
         return jsonify({'error': 'Plano inválido'}), 400
     user = conn.execute('SELECT username, email FROM users WHERE id=?', (uid,)).fetchone()
     # Cria registro pendente
-    conn.execute('INSERT INTO assinaturas (user_id,plano_id,status,valor) VALUES (?,?,?,?)',
-                 (uid, plano_id, 'pendente', plano['preco']))
-    assn_id = conn.lastrowid
+    cur_assn = conn.execute('INSERT INTO assinaturas (user_id,plano_id,status,valor) VALUES (?,?,?,?)',
+                            (uid, plano_id, 'pendente', plano['preco']))
+    assn_id = cur_assn.lastrowid
     conn.commit()
     def _expira_em(tipo):
         now = datetime.datetime.now()
@@ -1284,10 +1284,10 @@ def admin_planos_create():
     conn = get_db()
     tipo = d.get('tipo','mensal')
     if tipo not in ('semanal','mensal','vitalicio'): tipo = 'mensal'
-    conn.execute('INSERT INTO planos (nome,descricao,max_pdfs_mes,preco,tipo) VALUES (?,?,?,?,?)',
-                 (nome, d.get('descricao',''), int(d.get('max_pdfs_mes') or 0),
-                  float(d.get('preco') or 0), tipo))
-    new_id = conn.lastrowid
+    cur = conn.execute('INSERT INTO planos (nome,descricao,max_pdfs_mes,preco,tipo) VALUES (?,?,?,?,?)',
+                       (nome, d.get('descricao',''), int(d.get('max_pdfs_mes') or 0),
+                        float(d.get('preco') or 0), tipo))
+    new_id = cur.lastrowid
     conn.commit(); conn.close()
     log_action('admin_criar_plano', {'nome': nome})
     return jsonify({'ok': True, 'id': new_id})
@@ -1348,7 +1348,7 @@ def admin_imoveis_create():
     conn = get_db()
     if conn.execute('SELECT id FROM imoveis WHERE slug=?', (slug,)).fetchone():
         slug = slug + '-' + str(conn.execute('SELECT COUNT(*) FROM imoveis').fetchone()[0])
-    conn.execute('''INSERT INTO imoveis
+    cur_im = conn.execute('''INSERT INTO imoveis
         (slug,nome,endereco,cep,cidade,estado,cod_imovel,quartos,banheiros,area,mobiliado,
          destaque1,destaque2,destaque3,descricao,copy_txt,preco_baixa,preco_alta)
         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)''', (
@@ -1358,7 +1358,7 @@ def admin_imoveis_create():
         d.get('destaque3',''), d.get('descricao',''), d.get('copy_txt',''),
         d.get('preco_baixa',''), d.get('preco_alta',''),
     ))
-    new_id = conn.lastrowid
+    new_id = cur_im.lastrowid
     conn.commit(); conn.close()
     log_action('admin_criar_imovel', {'nome': nome, 'id': new_id})
     return jsonify({'ok': True, 'id': new_id})
