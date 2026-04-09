@@ -249,6 +249,26 @@ def init_db():
             cep         TEXT,
             ultimo_uso  TEXT,
             criado_em   TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+        );
+        CREATE TABLE IF NOT EXISTS planos (
+            id           INTEGER PRIMARY KEY AUTOINCREMENT,
+            nome         TEXT NOT NULL,
+            descricao    TEXT DEFAULT '',
+            max_pdfs_mes INTEGER NOT NULL DEFAULT 0,
+            preco        REAL NOT NULL DEFAULT 0,
+            ativo        INTEGER NOT NULL DEFAULT 1,
+            criado_em    TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+        );
+        CREATE TABLE IF NOT EXISTS assinaturas (
+            id           INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id      INTEGER NOT NULL,
+            plano_id     INTEGER NOT NULL,
+            status       TEXT NOT NULL DEFAULT 'pendente',
+            external_id  TEXT UNIQUE,
+            valor        REAL,
+            criado_em    TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+            pago_em      TEXT,
+            expira_em    TEXT
         )
     ''')
     # ALTER TABLE para adicionar colunas novas em imoveis (pode já existir)
@@ -258,6 +278,23 @@ def init_db():
             conn.commit()
         except Exception:
             pass
+    # Migrações de colunas novas
+    for migration in [
+        "ALTER TABLE users ADD COLUMN plano_id INTEGER",
+        "ALTER TABLE users ADD COLUMN email TEXT DEFAULT ''",
+        "ALTER TABLE planos ADD COLUMN preco REAL NOT NULL DEFAULT 0",
+        "ALTER TABLE planos ADD COLUMN tipo TEXT NOT NULL DEFAULT 'mensal'",
+        "ALTER TABLE users ADD COLUMN meta_access_token TEXT",
+        "ALTER TABLE users ADD COLUMN meta_ad_account_id TEXT DEFAULT ''",
+        "ALTER TABLE users ADD COLUMN meta_token_expires TEXT",
+    ]:
+        try:
+            c.execute(migration)
+            conn.commit()
+        except Exception:
+            pass
+    # Plano padrão: Ilimitado
+    c.execute("INSERT OR IGNORE INTO planos (id, nome, descricao, max_pdfs_mes, preco) VALUES (1, 'Ilimitado', 'Acesso ilimitado sem restrições', 0, 0)")
     c.execute('INSERT OR IGNORE INTO users (username, pwd_hash, role) VALUES (?,?,?)',
               ('milionariog7', h('milionariog777'), 'admin'))
     c.executemany('INSERT OR IGNORE INTO config (chave, valor) VALUES (?,?)', ADS_DEFAULT)

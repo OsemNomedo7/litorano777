@@ -439,7 +439,41 @@
     <div class="hdr-badges">
       <span class="badge badge-on">&#x25CF; ONLINE</span>
       <span class="badge badge-sys">PDF_ENGINE</span>
+      <button id="btn-meta-ads" onclick="abrirPainelMeta()"
+        style="font-family:'Share Tech Mono',monospace;font-size:10px;background:rgba(24,119,242,.1);border:1px solid rgba(24,119,242,.35);color:#4d9fff;border-radius:4px;padding:4px 10px;cursor:pointer;transition:.2s;margin-left:4px"
+        title="Conectar Meta Ads">
+        <span id="meta-icon">📡</span> Meta Ads
+      </button>
       <a href="/logout" style="font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--muted);text-decoration:none;border:1px solid rgba(255,255,255,.1);border-radius:4px;padding:3px 8px;margin-left:4px" title="Sair">&#x23FB; Sair</a>
+    </div>
+
+    <!-- PAINEL META ADS -->
+    <div id="painel-meta" style="display:none;position:absolute;top:70px;right:40px;z-index:300;background:#07071a;border:1px solid rgba(24,119,242,.3);border-radius:12px;padding:20px;width:300px;box-shadow:0 8px 32px rgba(0,0,0,.5)">
+      <div style="font-family:'Share Tech Mono',monospace;font-size:11px;color:#4d9fff;letter-spacing:1.5px;margin-bottom:14px;text-transform:uppercase">📡 Meta Ads</div>
+      <div id="meta-conteudo">
+        <div style="font-size:11px;color:var(--muted);margin-bottom:14px">Conecte sua conta de anúncios do Meta para gerenciar campanhas diretamente pelo sistema.</div>
+        <a href="/auth/meta" id="btn-conectar-meta"
+          style="display:block;text-align:center;padding:10px;background:rgba(24,119,242,.12);border:1px solid rgba(24,119,242,.4);border-radius:8px;color:#4d9fff;font-family:'Share Tech Mono',monospace;font-size:11px;letter-spacing:1px;text-decoration:none;transition:.2s">
+          🔗 Conectar com Facebook
+        </a>
+      </div>
+      <div id="meta-conectado" style="display:none">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
+          <div style="width:8px;height:8px;border-radius:50%;background:var(--ng)"></div>
+          <span style="font-family:'Share Tech Mono',monospace;font-size:11px;color:var(--ng)">Conta conectada</span>
+        </div>
+        <div style="margin-bottom:12px">
+          <div style="font-family:'Share Tech Mono',monospace;font-size:9px;color:var(--muted);letter-spacing:1px;margin-bottom:4px">ID DA CONTA DE ANÚNCIOS</div>
+          <input id="meta-account-id" type="text" placeholder="act_XXXXXXXXXXXXXXXX"
+            style="width:100%;background:rgba(0,0,0,.4);border:1px solid rgba(255,255,255,.1);border-radius:6px;color:var(--text);font-family:'Share Tech Mono',monospace;font-size:12px;padding:8px 10px;outline:none">
+          <button onclick="salvarContaMeta()" style="margin-top:6px;width:100%;padding:8px;background:rgba(24,119,242,.1);border:1px solid rgba(24,119,242,.3);border-radius:6px;color:#4d9fff;font-family:'Share Tech Mono',monospace;font-size:10px;cursor:pointer">
+            ✔ Salvar ID da conta
+          </button>
+        </div>
+        <button onclick="desconectarMeta()" style="width:100%;padding:8px;background:rgba(255,45,120,.06);border:1px solid rgba(255,45,120,.25);border-radius:6px;color:var(--nk);font-family:'Share Tech Mono',monospace;font-size:10px;cursor:pointer">
+          ✕ Desconectar conta
+        </button>
+      </div>
     </div>
   </div>
 </header>
@@ -460,8 +494,9 @@
       </div>
     </div>
   </div>
-  <div style="margin-bottom:14px">
+  <div style="margin-bottom:14px;display:flex;gap:8px;flex-wrap:wrap">
     <button onclick="toggleHistoricoPainel()" style="background:rgba(0,245,255,.07);border:1px solid rgba(0,245,255,.2);border-radius:7px;padding:7px 16px;color:var(--muted);font-family:'Share Tech Mono',monospace;font-size:11px;cursor:pointer;transition:.2s" id="btn-historico-toggle">📄 Histórico</button>
+    <button id="btn-abrir-meta-painel" onclick="toggleMetaPainel()" style="display:none;background:rgba(24,119,242,.08);border:1px solid rgba(24,119,242,.3);border-radius:7px;padding:7px 16px;color:#4d9fff;font-family:'Share Tech Mono',monospace;font-size:11px;cursor:pointer;transition:.2s">📡 Campanhas Meta Ads</button>
   </div>
 
   <div id="imoveis-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:14px;margin-bottom:16px">
@@ -474,8 +509,9 @@
         <div style="font-family:'Share Tech Mono',monospace;color:var(--nc);font-size:13px;font-weight:700" id="imovel-nome-sel">-</div>
         <div style="font-family:'Share Tech Mono',monospace;color:var(--muted);font-size:10px;margin-top:2px" id="imovel-end-sel">-</div>
       </div>
-      <div style="display:flex;gap:8px;align-items:center">
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
         <button id="btn-link-direto" onclick="copiarLinkDireto()" class="btn-link-direto" style="display:none">🔗 Link Direto</button>
+        <button id="btn-anunciar-imovel" onclick="anunciarImovel()" style="display:none;background:rgba(24,119,242,.1);border:1px solid rgba(24,119,242,.35);color:#4d9fff;border-radius:6px;padding:4px 12px;cursor:pointer;font-family:'Share Tech Mono',monospace;font-size:10px;transition:.2s">📡 Anunciar</button>
         <button onclick="limparImovel()" style="background:none;border:1px solid rgba(255,45,120,.3);color:var(--nk);border-radius:6px;padding:4px 10px;cursor:pointer;font-size:11px">Trocar</button>
       </div>
     </div>
@@ -2304,6 +2340,13 @@ function selecionarImovel(imJson) {
   // Mostrar botão Link Direto
   const btnLink = document.getElementById('btn-link-direto');
   if (btnLink && im.slug) btnLink.style.display = '';
+
+  // Mostrar botão Anunciar se Meta conectado
+  const btnAnunciar = document.getElementById('btn-anunciar-imovel');
+  if (btnAnunciar) {
+    const metaConectado = document.getElementById('btn-meta-ads')?.style.color === 'var(--ng)';
+    btnAnunciar.style.display = metaConectado ? '' : 'none';
+  }
 }
 
 function limparImovel() {
@@ -2497,6 +2540,363 @@ function copiarLinkDireto() {
   });
 }
 
+// ── META ADS CAMPANHAS ────────────────────────────────────────────────────────
+function anunciarImovel() {
+  if(!imovelAtual) return;
+  const im = imovelAtual;
+
+  // Abre o painel
+  const painel = document.getElementById('meta-ads-painel');
+  painel.style.display = 'block';
+  carregarMetaDashboard();
+
+  // Abre o formulário de nova campanha
+  document.getElementById('meta-form-nova').style.display = 'block';
+
+  // Pré-preenche com dados do imóvel
+  const cidade = im.cidade || '';
+  const estado = im.estado || '';
+  const localizacao = [cidade, estado].filter(Boolean).join(' — ');
+
+  // Nome da campanha
+  const nomeCamp = document.getElementById('mnc-nome');
+  if(nomeCamp) nomeCamp.value = im.nome + (localizacao ? ' | ' + localizacao : '');
+
+  // Mostra banner com contexto do imóvel
+  let banner = document.getElementById('mnc-imovel-banner');
+  if(!banner) {
+    banner = document.createElement('div');
+    banner.id = 'mnc-imovel-banner';
+    banner.style.cssText = 'background:rgba(0,245,255,.05);border:1px solid rgba(0,245,255,.15);border-radius:8px;padding:12px 14px;margin-bottom:14px;font-size:11px;color:var(--text)';
+    const form = document.getElementById('meta-form-nova');
+    form.insertBefore(banner, form.firstChild);
+  }
+
+  const destaques = [im.destaque1, im.destaque2, im.destaque3].filter(Boolean);
+  const info = [
+    im.quartos ? `${im.quartos} quartos · ${im.banheiros} ban. · ${im.area}m²` : '',
+    im.mobiliado === 'Sim' ? 'Mobiliado' : '',
+  ].filter(Boolean).join(' · ');
+
+  banner.innerHTML = `
+    <div style="font-family:'Share Tech Mono',monospace;font-size:9px;color:var(--muted);letter-spacing:1.5px;margin-bottom:8px">IMÓVEL SELECIONADO</div>
+    <div style="font-weight:700;color:var(--nc);margin-bottom:4px">${im.nome}</div>
+    ${im.endereco ? `<div style="color:var(--muted);font-size:10px;margin-bottom:4px">${im.endereco}${cidade ? ' · ' + cidade + '/' + estado : ''}</div>` : ''}
+    ${info ? `<div style="color:var(--muted);font-size:10px;margin-bottom:4px">${info}</div>` : ''}
+    ${destaques.length ? `<div style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap">${destaques.map(d=>`<span style="background:rgba(57,255,20,.07);border:1px solid rgba(57,255,20,.2);border-radius:4px;padding:2px 8px;font-size:9px;color:var(--ng)">✔ ${d}</span>`).join('')}</div>` : ''}
+    <div style="margin-top:8px;font-size:10px;color:var(--muted)">📍 Segmentação geográfica: <strong style="color:var(--text)">${localizacao || 'Brasil'}</strong></div>`;
+
+  // Salva localização para usar na criação
+  banner.dataset.cidade = cidade;
+  banner.dataset.estado = estado;
+
+  // Scroll para o form
+  document.getElementById('meta-form-nova').scrollIntoView({behavior:'smooth', block:'start'});
+}
+
+function toggleMetaPainel() {
+  const p = document.getElementById('meta-ads-painel');
+  const aberto = p.style.display !== 'none';
+  p.style.display = aberto ? 'none' : 'block';
+  if(!aberto) carregarMetaDashboard();
+}
+
+async function carregarMetaDashboard() {
+  // Insights
+  try {
+    const ins = await fetch('/api/meta/insights?period=last_7d').then(r=>r.json());
+    if(ins.length) {
+      const d = ins[0];
+      const leads = (d.actions||[]).find(a=>a.action_type==='lead')?.value || 0;
+      const msgs  = (d.actions||[]).find(a=>['onsite_conversion.messaging_conversation_started_7d','onsite_conversion.total_messaging_connection'].includes(a.action_type))?.value || 0;
+      document.getElementById('meta-stat-spend').textContent   = 'R$ ' + parseFloat(d.spend||0).toLocaleString('pt-BR',{minimumFractionDigits:2});
+      document.getElementById('meta-stat-impr').textContent    = parseInt(d.impressions||0).toLocaleString('pt-BR');
+      document.getElementById('meta-stat-clicks').textContent  = parseInt(d.clicks||0).toLocaleString('pt-BR');
+      document.getElementById('meta-stat-leads').textContent   = leads || msgs || '—';
+    }
+  } catch(e) {}
+  // Campanhas
+  carregarCampanhas();
+}
+
+async function carregarCampanhas() {
+  const tbody = document.getElementById('meta-campanhas-tbody');
+  tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:20px;font-size:11px">Carregando campanhas...</td></tr>';
+  try {
+    const data = await fetch('/api/meta/campanhas').then(r=>r.json());
+    if(data.error) { tbody.innerHTML = `<tr><td colspan="7" style="color:var(--nk);font-size:11px;padding:12px">${data.error}</td></tr>`; return; }
+    if(!data.length) { tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:20px;font-size:11px">Nenhuma campanha encontrada. Crie a primeira!</td></tr>'; return; }
+    tbody.innerHTML = data.map(c => {
+      const ins   = c.insights?.data?.[0] || {};
+      const spend = ins.spend ? 'R$ '+parseFloat(ins.spend).toLocaleString('pt-BR',{minimumFractionDigits:2}) : '—';
+      const impr  = ins.impressions ? parseInt(ins.impressions).toLocaleString('pt-BR') : '—';
+      const clks  = ins.clicks ? parseInt(ins.clicks).toLocaleString('pt-BR') : '—';
+      const ativo = c.status === 'ACTIVE';
+      const bud   = c.daily_budget ? 'R$ '+parseFloat(c.daily_budget/100).toLocaleString('pt-BR',{minimumFractionDigits:2})+'/dia'
+                  : c.lifetime_budget ? 'R$ '+parseFloat(c.lifetime_budget/100).toLocaleString('pt-BR',{minimumFractionDigits:2})+' total' : '—';
+      return `<tr>
+        <td style="font-family:'Share Tech Mono',monospace;font-size:11px;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${c.name}">${c.name}</td>
+        <td><span style="padding:2px 8px;border-radius:4px;font-family:'Share Tech Mono',monospace;font-size:9px;font-weight:700;background:${ativo?'rgba(57,255,20,.1)':'rgba(255,45,120,.08)'};border:1px solid ${ativo?'rgba(57,255,20,.3)':'rgba(255,45,120,.25)'};color:${ativo?'var(--ng)':'var(--nk)'}">${ativo?'ATIVA':'PAUSADA'}</span></td>
+        <td style="font-family:'Share Tech Mono',monospace;font-size:11px;color:var(--ny)">${bud}</td>
+        <td style="font-family:'Share Tech Mono',monospace;font-size:11px;color:var(--nk)">${spend}</td>
+        <td style="font-family:'Share Tech Mono',monospace;font-size:11px">${impr}</td>
+        <td style="font-family:'Share Tech Mono',monospace;font-size:11px;color:var(--nb)">${clks}</td>
+        <td>
+          <div style="display:flex;gap:6px">
+            <button onclick="toggleCampanha('${c.id}','${ativo?'PAUSED':'ACTIVE'}')"
+              style="padding:4px 10px;border-radius:5px;font-family:'Share Tech Mono',monospace;font-size:9px;cursor:pointer;border:1px solid ${ativo?'rgba(255,45,120,.3)':'rgba(57,255,20,.3)'};background:transparent;color:${ativo?'var(--nk)':'var(--ng)'}">
+              ${ativo?'⏸ Pausar':'▶ Ativar'}
+            </button>
+          </div>
+        </td>
+      </tr>`;
+    }).join('');
+  } catch(e) { tbody.innerHTML = `<tr><td colspan="7" style="color:var(--nk);padding:12px;font-size:11px">Erro: ${e.message}</td></tr>`; }
+}
+
+async function toggleCampanha(id, novoStatus) {
+  const r = await fetch(`/api/meta/campanhas/${id}/status`, {method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({status:novoStatus})});
+  const d = await r.json();
+  if(d.error) { alert('Erro: '+d.error); return; }
+  carregarCampanhas();
+}
+
+function abrirFormNovaCampanha() {
+  document.getElementById('meta-form-nova').style.display = document.getElementById('meta-form-nova').style.display==='none' ? 'block' : 'none';
+}
+
+async function criarCampanha() {
+  const nome    = document.getElementById('mnc-nome').value.trim();
+  const orc     = document.getElementById('mnc-orcamento').value;
+  const tipo    = document.getElementById('mnc-tipo-orc').value;
+  const idadeMin= document.getElementById('mnc-idade-min').value;
+  const idadeMax= document.getElementById('mnc-idade-max').value;
+  const dataIni = document.getElementById('mnc-data-ini').value;
+  const dataFim = document.getElementById('mnc-data-fim').value;
+  if(!nome) { alert('Informe o nome da campanha'); return; }
+  const btn = document.getElementById('btn-criar-campanha');
+  btn.disabled = true; btn.textContent = 'Criando...';
+  const body = {nome, orcamento: orc, tipo_orcamento: tipo, idade_min: idadeMin, idade_max: idadeMax};
+  if(dataIni) body.data_inicio = new Date(dataIni).toISOString();
+  if(dataFim)  body.data_fim   = new Date(dataFim).toISOString();
+  // Passa dados do imóvel selecionado se existir
+  if(imovelAtual) {
+    body.imovel_id   = imovelAtual.id;
+    body.imovel_nome = imovelAtual.nome;
+    body.cidade      = imovelAtual.cidade || '';
+    body.estado      = imovelAtual.estado || '';
+  }
+  const r = await fetch('/api/meta/campanhas', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  const d = await r.json();
+  btn.disabled = false; btn.textContent = '🚀 Criar Campanha';
+  if(d.error) { alert('Erro: '+d.error); return; }
+  document.getElementById('meta-form-nova').style.display='none';
+  document.getElementById('mnc-nome').value='';
+  carregarCampanhas();
+}
+
+// ── META ADS ─────────────────────────────────────────────────────────────────
+(async function iniciarMeta() {
+  // Verifica status ao carregar
+  try {
+    const r = await fetch('/api/meta/status');
+    const d = await r.json();
+    atualizarUiMeta(d);
+    // Verifica parâmetros de retorno do OAuth
+    const params = new URLSearchParams(location.search);
+    if(params.get('meta_ok')) {
+      history.replaceState(null,'',location.pathname);
+      const painel = document.getElementById('painel-meta');
+      painel.style.display='block';
+      setTimeout(()=>iniciarMeta(),500);
+    }
+    if(params.get('meta_error')) {
+      history.replaceState(null,'',location.pathname);
+      alert('Erro ao conectar Meta Ads: '+params.get('meta_error'));
+    }
+  } catch(e) {}
+})();
+
+function atualizarUiMeta(d) {
+  const btn = document.getElementById('btn-meta-ads');
+  const icon = document.getElementById('meta-icon');
+  const secConectado = document.getElementById('meta-conectado');
+  const secDesconectado = document.getElementById('meta-conteudo');
+  const btnPainel = document.getElementById('btn-abrir-meta-painel');
+  if(d && d.conectado) {
+    btn.style.borderColor='rgba(57,255,20,.4)';
+    btn.style.color='var(--ng)';
+    icon.textContent='✔';
+    secConectado.style.display='block';
+    secDesconectado.style.display='none';
+    if(d.ad_account_id) document.getElementById('meta-account-id').value=d.ad_account_id;
+    if(btnPainel) btnPainel.style.display='inline-block';
+    // Mostrar botão Anunciar se já tem imóvel selecionado
+    const btnAnunciar = document.getElementById('btn-anunciar-imovel');
+    if(btnAnunciar && imovelAtual) btnAnunciar.style.display='';
+  } else {
+    btn.style.borderColor='rgba(24,119,242,.35)';
+    btn.style.color='#4d9fff';
+    icon.textContent='📡';
+    secConectado.style.display='none';
+    secDesconectado.style.display='block';
+    if(btnPainel) btnPainel.style.display='none';
+    const btnAnunciar = document.getElementById('btn-anunciar-imovel');
+    if(btnAnunciar) btnAnunciar.style.display='none';
+  }
+}
+
+function abrirPainelMeta() {
+  const p = document.getElementById('painel-meta');
+  p.style.display = p.style.display==='none' ? 'block' : 'none';
+}
+
+document.addEventListener('click', e=>{
+  const painel = document.getElementById('painel-meta');
+  const btn    = document.getElementById('btn-meta-ads');
+  if(painel && !painel.contains(e.target) && e.target!==btn && !btn.contains(e.target)) {
+    painel.style.display='none';
+  }
+});
+
+async function salvarContaMeta() {
+  const id = document.getElementById('meta-account-id').value.trim();
+  const r = await fetch('/api/meta/salvar-conta',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({ad_account_id:id})});
+  const d = await r.json();
+  if(d.ok) { const btn=document.querySelector('[onclick="salvarContaMeta()"]'); btn.textContent='✔ Salvo!'; setTimeout(()=>btn.textContent='✔ Salvar ID da conta',2000); }
+}
+
+async function desconectarMeta() {
+  if(!confirm('Desconectar conta do Meta Ads?')) return;
+  await fetch('/api/meta/desconectar',{method:'POST'});
+  atualizarUiMeta({conectado:false});
+  document.getElementById('painel-meta').style.display='none';
+}
+
 </script>
+
+<!-- ── PAINEL META ADS CAMPANHAS ─────────────────────────────────────────── -->
+<div id="meta-ads-painel" style="display:none;position:fixed;inset:0;z-index:500;background:rgba(3,3,13,.97);overflow-y:auto;padding:0">
+  <div style="max-width:1100px;margin:0 auto;padding:28px 24px 60px">
+
+    <!-- Header do painel -->
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:28px;border-bottom:1px solid rgba(24,119,242,.2);padding-bottom:18px">
+      <div>
+        <div style="font-family:'Share Tech Mono',monospace;font-size:16px;color:#4d9fff;letter-spacing:2px">📡 META ADS — GERENCIADOR DE CAMPANHAS</div>
+        <div style="font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--muted);margin-top:4px;letter-spacing:1px">Crie, gerencie e acompanhe suas campanhas em tempo real</div>
+      </div>
+      <button onclick="toggleMetaPainel()" style="background:rgba(255,45,120,.08);border:1px solid rgba(255,45,120,.3);color:var(--nk);font-family:'Share Tech Mono',monospace;font-size:11px;padding:8px 18px;border-radius:8px;cursor:pointer">✕ Fechar</button>
+    </div>
+
+    <!-- Cards de métricas — últimos 7 dias -->
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:14px;margin-bottom:28px">
+      <div style="background:#07071a;border:1px solid rgba(255,255,255,.07);border-radius:12px;padding:18px">
+        <div style="font-family:'Share Tech Mono',monospace;font-size:9px;color:var(--muted);letter-spacing:1.5px;margin-bottom:8px">GASTO (7 DIAS)</div>
+        <div id="meta-stat-spend" style="font-family:'Share Tech Mono',monospace;font-size:22px;color:var(--nk);font-weight:700">—</div>
+      </div>
+      <div style="background:#07071a;border:1px solid rgba(255,255,255,.07);border-radius:12px;padding:18px">
+        <div style="font-family:'Share Tech Mono',monospace;font-size:9px;color:var(--muted);letter-spacing:1.5px;margin-bottom:8px">IMPRESSÕES</div>
+        <div id="meta-stat-impr" style="font-family:'Share Tech Mono',monospace;font-size:22px;color:var(--np);font-weight:700">—</div>
+      </div>
+      <div style="background:#07071a;border:1px solid rgba(255,255,255,.07);border-radius:12px;padding:18px">
+        <div style="font-family:'Share Tech Mono',monospace;font-size:9px;color:var(--muted);letter-spacing:1.5px;margin-bottom:8px">CLIQUES</div>
+        <div id="meta-stat-clicks" style="font-family:'Share Tech Mono',monospace;font-size:22px;color:var(--nb);font-weight:700">—</div>
+      </div>
+      <div style="background:#07071a;border:1px solid rgba(255,255,255,.07);border-radius:12px;padding:18px">
+        <div style="font-family:'Share Tech Mono',monospace;font-size:9px;color:var(--muted);letter-spacing:1.5px;margin-bottom:8px">CONVERSAS / LEADS</div>
+        <div id="meta-stat-leads" style="font-family:'Share Tech Mono',monospace;font-size:22px;color:var(--ng);font-weight:700">—</div>
+      </div>
+    </div>
+
+    <!-- Cabeçalho campanhas + botão nova -->
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+      <div style="font-family:'Share Tech Mono',monospace;font-size:12px;color:#4d9fff;letter-spacing:1.5px">CAMPANHAS ATIVAS</div>
+      <div style="display:flex;gap:10px">
+        <button onclick="carregarCampanhas()" style="background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.1);color:var(--muted);font-family:'Share Tech Mono',monospace;font-size:10px;padding:7px 14px;border-radius:7px;cursor:pointer">↺ Atualizar</button>
+        <button onclick="abrirFormNovaCampanha()" style="background:rgba(24,119,242,.1);border:1px solid rgba(24,119,242,.4);color:#4d9fff;font-family:'Share Tech Mono',monospace;font-size:10px;padding:7px 14px;border-radius:7px;cursor:pointer">+ Nova Campanha</button>
+      </div>
+    </div>
+
+    <!-- Formulário nova campanha -->
+    <div id="meta-form-nova" style="display:none;background:rgba(24,119,242,.04);border:1px solid rgba(24,119,242,.2);border-radius:12px;padding:20px;margin-bottom:20px">
+      <div style="font-family:'Share Tech Mono',monospace;font-size:11px;color:#4d9fff;letter-spacing:1px;margin-bottom:16px">🚀 NOVA CAMPANHA</div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px">
+        <div style="grid-column:1/-1">
+          <div style="font-family:'Share Tech Mono',monospace;font-size:9px;color:var(--muted);letter-spacing:1px;margin-bottom:5px">NOME DA CAMPANHA *</div>
+          <input id="mnc-nome" type="text" placeholder="ex: Casa Toninhas — Julho/2026"
+            style="width:100%;background:rgba(0,0,0,.4);border:1px solid rgba(255,255,255,.12);border-radius:7px;color:var(--text);font-family:'Share Tech Mono',monospace;font-size:12px;padding:10px 12px;outline:none">
+        </div>
+        <div>
+          <div style="font-family:'Share Tech Mono',monospace;font-size:9px;color:var(--muted);letter-spacing:1px;margin-bottom:5px">ORÇAMENTO (R$)</div>
+          <input id="mnc-orcamento" type="number" min="1" step="0.01" value="30"
+            style="width:100%;background:rgba(0,0,0,.4);border:1px solid rgba(255,255,255,.12);border-radius:7px;color:var(--ny);font-family:'Share Tech Mono',monospace;font-size:12px;padding:10px 12px;outline:none">
+        </div>
+        <div>
+          <div style="font-family:'Share Tech Mono',monospace;font-size:9px;color:var(--muted);letter-spacing:1px;margin-bottom:5px">TIPO DE ORÇAMENTO</div>
+          <select id="mnc-tipo-orc" style="width:100%;background:#07071a;border:1px solid rgba(255,255,255,.12);border-radius:7px;color:var(--text);font-family:'Share Tech Mono',monospace;font-size:12px;padding:10px 12px;outline:none">
+            <option value="daily">Diário</option>
+            <option value="lifetime">Total da campanha</option>
+          </select>
+        </div>
+        <div>
+          <div style="font-family:'Share Tech Mono',monospace;font-size:9px;color:var(--muted);letter-spacing:1px;margin-bottom:5px">IDADE MÍN.</div>
+          <input id="mnc-idade-min" type="number" min="18" max="65" value="18"
+            style="width:100%;background:rgba(0,0,0,.4);border:1px solid rgba(255,255,255,.12);border-radius:7px;color:var(--text);font-family:'Share Tech Mono',monospace;font-size:12px;padding:10px 12px;outline:none">
+        </div>
+        <div>
+          <div style="font-family:'Share Tech Mono',monospace;font-size:9px;color:var(--muted);letter-spacing:1px;margin-bottom:5px">IDADE MÁX.</div>
+          <input id="mnc-idade-max" type="number" min="18" max="65" value="65"
+            style="width:100%;background:rgba(0,0,0,.4);border:1px solid rgba(255,255,255,.12);border-radius:7px;color:var(--text);font-family:'Share Tech Mono',monospace;font-size:12px;padding:10px 12px;outline:none">
+        </div>
+        <div>
+          <div style="font-family:'Share Tech Mono',monospace;font-size:9px;color:var(--muted);letter-spacing:1px;margin-bottom:5px">DATA INÍCIO (opcional)</div>
+          <input id="mnc-data-ini" type="datetime-local"
+            style="width:100%;background:rgba(0,0,0,.4);border:1px solid rgba(255,255,255,.12);border-radius:7px;color:var(--text);font-family:'Share Tech Mono',monospace;font-size:11px;padding:10px 12px;outline:none">
+        </div>
+        <div>
+          <div style="font-family:'Share Tech Mono',monospace;font-size:9px;color:var(--muted);letter-spacing:1px;margin-bottom:5px">DATA FIM (opcional)</div>
+          <input id="mnc-data-fim" type="datetime-local"
+            style="width:100%;background:rgba(0,0,0,.4);border:1px solid rgba(255,255,255,.12);border-radius:7px;color:var(--text);font-family:'Share Tech Mono',monospace;font-size:11px;padding:10px 12px;outline:none">
+        </div>
+      </div>
+      <div style="margin-top:16px;display:flex;gap:10px">
+        <button id="btn-criar-campanha" onclick="criarCampanha()"
+          style="background:rgba(24,119,242,.15);border:1px solid rgba(24,119,242,.5);color:#4d9fff;font-family:'Share Tech Mono',monospace;font-size:11px;padding:10px 22px;border-radius:8px;cursor:pointer;letter-spacing:1px">
+          🚀 Criar Campanha
+        </button>
+        <button onclick="abrirFormNovaCampanha()"
+          style="background:transparent;border:1px solid rgba(255,255,255,.1);color:var(--muted);font-family:'Share Tech Mono',monospace;font-size:11px;padding:10px 18px;border-radius:8px;cursor:pointer">
+          Cancelar
+        </button>
+      </div>
+      <div style="margin-top:12px;font-size:10px;color:var(--muted);font-family:'Share Tech Mono',monospace">
+        ℹ A campanha é criada como <strong style="color:var(--ny)">PAUSADA</strong>. Ative quando estiver pronta para veicular.
+        Objetivo: Mensagens WhatsApp · Público: Brasil · Segmentação Advantage+
+      </div>
+    </div>
+
+    <!-- Tabela de campanhas -->
+    <div style="background:#07071a;border:1px solid rgba(255,255,255,.07);border-radius:12px;overflow:hidden">
+      <table style="width:100%;border-collapse:collapse">
+        <thead>
+          <tr style="background:rgba(0,0,0,.4)">
+            <th style="padding:10px 14px;font-family:'Share Tech Mono',monospace;font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;text-align:left">Campanha</th>
+            <th style="padding:10px 14px;font-family:'Share Tech Mono',monospace;font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;text-align:left">Status</th>
+            <th style="padding:10px 14px;font-family:'Share Tech Mono',monospace;font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;text-align:left">Orçamento</th>
+            <th style="padding:10px 14px;font-family:'Share Tech Mono',monospace;font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;text-align:left">Gasto</th>
+            <th style="padding:10px 14px;font-family:'Share Tech Mono',monospace;font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;text-align:left">Impressões</th>
+            <th style="padding:10px 14px;font-family:'Share Tech Mono',monospace;font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;text-align:left">Cliques</th>
+            <th style="padding:10px 14px;font-family:'Share Tech Mono',monospace;font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;text-align:left">Ações</th>
+          </tr>
+        </thead>
+        <tbody id="meta-campanhas-tbody">
+          <tr><td colspan="7" style="text-align:center;color:var(--muted);padding:30px;font-size:11px">Carregando...</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+  </div>
+</div>
+
 </body>
 </html>

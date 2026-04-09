@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>LITORANO — Escolha seu Plano</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap');
+:root{--bg:#03030d;--bg2:#07071a;--bg3:#0b0b22;--nc:#00f5ff;--np:#bf5af2;--nk:#ff2d78;--ng:#39ff14;--ny:#ffd60a;--text:#ccd0f0;--muted:#4a4a7a;}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Segoe UI',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;
+  background-image:linear-gradient(rgba(0,245,255,.018) 1px,transparent 1px),linear-gradient(90deg,rgba(0,245,255,.018) 1px,transparent 1px);
+  background-size:44px 44px}
+
+/* HEADER */
+.header{display:flex;align-items:center;justify-content:space-between;padding:20px 40px;border-bottom:1px solid rgba(0,245,255,.08);background:rgba(7,7,26,.95);backdrop-filter:blur(12px);position:sticky;top:0;z-index:10}
+.header-logo img{height:36px}
+.header-user{display:flex;align-items:center;gap:14px}
+.header-username{font-family:'Share Tech Mono',monospace;font-size:11px;color:var(--muted)}
+.btn-sair{background:none;border:1px solid rgba(255,45,120,.3);color:var(--nk);font-family:'Share Tech Mono',monospace;font-size:10px;letter-spacing:1px;padding:6px 14px;border-radius:6px;cursor:pointer;transition:.2s}
+.btn-sair:hover{background:rgba(255,45,120,.08)}
+
+/* HERO */
+.hero{text-align:center;padding:60px 20px 40px}
+.hero-tag{font-family:'Share Tech Mono',monospace;font-size:10px;letter-spacing:3px;color:var(--nc);text-transform:uppercase;margin-bottom:16px;opacity:.7}
+.hero-title{font-size:clamp(26px,5vw,42px);font-weight:700;color:#fff;letter-spacing:-1px;margin-bottom:12px}
+.hero-title span{color:var(--nc)}
+.hero-sub{font-size:14px;color:var(--muted);max-width:500px;margin:0 auto;line-height:1.6}
+
+/* PLANOS GRID */
+.planos-wrap{max-width:960px;margin:0 auto;padding:20px 20px 60px;display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:20px}
+.plano-card{background:var(--bg2);border:1px solid rgba(255,255,255,.08);border-radius:16px;padding:28px 24px;display:flex;flex-direction:column;transition:.25s;position:relative;overflow:hidden}
+.plano-card:hover{border-color:rgba(0,245,255,.3);transform:translateY(-2px);box-shadow:0 8px 40px rgba(0,245,255,.06)}
+.plano-card.destaque{border-color:rgba(0,245,255,.35);box-shadow:0 0 30px rgba(0,245,255,.06)}
+.plano-card.destaque::before{content:'MAIS POPULAR';position:absolute;top:14px;right:-26px;background:var(--nc);color:#03030d;font-family:'Share Tech Mono',monospace;font-size:8px;letter-spacing:2px;padding:4px 32px;transform:rotate(45deg);font-weight:700}
+.plano-nome{font-family:'Share Tech Mono',monospace;font-size:14px;color:var(--nc);letter-spacing:1px;margin-bottom:6px;text-transform:uppercase}
+.plano-desc{font-size:12px;color:var(--muted);margin-bottom:20px;line-height:1.5;flex:1}
+.plano-preco{margin-bottom:20px}
+.plano-preco .cifrao{font-family:'Share Tech Mono',monospace;font-size:13px;color:var(--muted);vertical-align:top;margin-top:6px;display:inline-block}
+.plano-preco .valor{font-family:'Share Tech Mono',monospace;font-size:38px;font-weight:700;color:#fff;line-height:1}
+.plano-preco .periodo{font-family:'Share Tech Mono',monospace;font-size:11px;color:var(--muted);margin-left:4px}
+.plano-features{list-style:none;margin-bottom:24px}
+.plano-features li{font-size:12px;color:var(--text);padding:5px 0;border-bottom:1px solid rgba(255,255,255,.04);display:flex;align-items:center;gap:8px}
+.plano-features li::before{content:'✔';color:var(--ng);font-size:10px;flex-shrink:0}
+.btn-assinar{width:100%;padding:13px;border-radius:8px;font-family:'Share Tech Mono',monospace;font-size:12px;letter-spacing:1.5px;text-transform:uppercase;cursor:pointer;transition:.2s;border:1px solid rgba(0,245,255,.4);background:rgba(0,245,255,.08);color:var(--nc)}
+.btn-assinar:hover{background:rgba(0,245,255,.18);border-color:var(--nc)}
+.btn-assinar:disabled{opacity:.4;cursor:not-allowed}
+.plano-card.destaque .btn-assinar{background:linear-gradient(135deg,rgba(0,245,255,.2),rgba(0,245,255,.1));border-color:var(--nc)}
+
+/* EMPTY STATE */
+.empty{text-align:center;padding:80px 20px;color:var(--muted);font-family:'Share Tech Mono',monospace;font-size:13px}
+.empty div:first-child{font-size:40px;margin-bottom:16px}
+
+/* MODAL PIX */
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.8);z-index:100;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(6px)}
+.modal{background:var(--bg2);border:1px solid rgba(0,245,255,.2);border-radius:16px;padding:32px;width:100%;max-width:480px;position:relative}
+.modal-title{font-family:'Share Tech Mono',monospace;font-size:14px;color:var(--nc);letter-spacing:2px;text-transform:uppercase;margin-bottom:8px}
+.modal-sub{font-size:12px;color:var(--muted);margin-bottom:24px;line-height:1.5}
+.pix-box{background:rgba(0,0,0,.4);border:1px solid rgba(0,245,255,.15);border-radius:10px;padding:14px 16px;font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--nc);word-break:break-all;line-height:1.6;margin-bottom:16px;cursor:pointer;position:relative}
+.pix-box:hover{border-color:rgba(0,245,255,.4)}
+.pix-hint{font-size:10px;color:var(--muted);text-align:center;margin-bottom:20px}
+.status-line{display:flex;align-items:center;gap:10px;font-family:'Share Tech Mono',monospace;font-size:11px;color:var(--muted)}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--ny);animation:pulse 1.5s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+.dot.pago{background:var(--ng);animation:none}
+.btn-copiar{width:100%;padding:11px;border-radius:8px;font-family:'Share Tech Mono',monospace;font-size:11px;letter-spacing:1px;cursor:pointer;border:1px solid rgba(57,255,20,.3);background:rgba(57,255,20,.06);color:var(--ng);margin-bottom:12px;transition:.2s}
+.btn-copiar:hover{background:rgba(57,255,20,.14)}
+.btn-fechar{width:100%;padding:9px;border-radius:8px;font-family:'Share Tech Mono',monospace;font-size:10px;letter-spacing:1px;cursor:pointer;border:1px solid rgba(255,255,255,.1);background:transparent;color:var(--muted);transition:.2s}
+.btn-fechar:hover{color:var(--text)}
+.spinner{display:inline-block;width:20px;height:20px;border:2px solid rgba(0,245,255,.2);border-top-color:var(--nc);border-radius:50%;animation:spin .8s linear infinite;margin:0 auto;display:block}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+@media(max-width:600px){.header{padding:16px 20px}.planos-wrap{grid-template-columns:1fr}.hero{padding:40px 20px 24px}}
+</style>
+</head>
+<body>
+
+<header class="header">
+  <div class="header-logo"><img src="/logo" alt="LITORANO"></div>
+  <div class="header-user">
+    <span class="header-username" id="hd-user">{{USERNAME}}</span>
+    <button class="btn-sair" onclick="window.location='/logout'">Sair</button>
+  </div>
+</header>
+
+<div class="hero">
+  <div class="hero-tag">Litorano SaaS</div>
+  <h1 class="hero-title">Escolha o plano <span>ideal</span> para você</h1>
+  <p class="hero-sub">Acesso completo à plataforma de locação, geração de documentos e gestão de anúncios no Meta Ads.</p>
+</div>
+
+<div class="planos-wrap" id="planos-container">
+  <div class="empty"><div>⏳</div>Carregando planos...</div>
+</div>
+
+<!-- MODAL PIX -->
+<div class="overlay" id="modal-pix" style="display:none">
+  <div class="modal">
+    <div class="modal-title">💳 Pagamento via PIX</div>
+    <div class="modal-sub" id="pix-plano-desc">Copie o código abaixo e pague no app do seu banco.</div>
+    <div class="pix-box" id="pix-code" onclick="copiarPix()"></div>
+    <button class="btn-copiar" onclick="copiarPix()">📋 Copiar código PIX</button>
+    <div class="pix-hint">Após o pagamento, aguarde a confirmação automática.</div>
+    <div class="status-line">
+      <div class="dot" id="pix-dot"></div>
+      <span id="pix-status">Aguardando pagamento...</span>
+    </div>
+    <div style="margin-top:20px">
+      <button class="btn-fechar" onclick="fecharPix()">Fechar e pagar depois</button>
+    </div>
+  </div>
+</div>
+
+<script>
+let _polling = null;
+
+async function carregarPlanos() {
+  const r = await fetch('/api/planos-publicos');
+  const planos = await r.json();
+  const cont = document.getElementById('planos-container');
+  if(!planos.length) {
+    cont.innerHTML = '<div class="empty"><div>📦</div>Nenhum plano disponível no momento.<br>Entre em contato com o suporte.</div>';
+    return;
+  }
+  // Destaca o do meio (ou o mais caro se ímpar)
+  const midIdx = Math.floor(planos.length / 2);
+  cont.innerHTML = planos.map((p, i) => {
+    const destaque = planos.length > 1 && i === midIdx;
+    const pdfs = p.max_pdfs_mes ? `${p.max_pdfs_mes} PDFs por mês` : 'PDFs ilimitados';
+    const preco = parseFloat(p.preco || 0);
+    const tipoLabel = {semanal:'/ semana',mensal:'/ mês',vitalicio:'pagamento único'}[p.tipo] || '/ mês';
+    const tipoIcon  = {semanal:'🗓',mensal:'📅',vitalicio:'♾'}[p.tipo] || '📅';
+    return `<div class="plano-card${destaque?' destaque':''}">
+      <div class="plano-nome">${p.nome}</div>
+      <div class="plano-desc">${p.descricao || 'Acesso à plataforma Litorano'}</div>
+      <div class="plano-preco">
+        <span class="cifrao">R$</span>
+        <span class="valor">${preco.toFixed(2).replace('.',',').split(',')[0]}</span><span class="cifrao">,${preco.toFixed(2).split('.')[1]}</span>
+        <span class="periodo">${tipoLabel}</span>
+      </div>
+      <div style="font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--muted);margin-bottom:12px">${tipoIcon} ${p.tipo==='vitalicio'?'Acesso vitalício sem renovação':p.tipo==='semanal'?'Renova a cada 7 dias':'Renova mensalmente'}</div>
+      <ul class="plano-features">
+        <li>${pdfs}</li>
+        <li>Acesso a todos os imóveis</li>
+        <li>Geração de contratos e boletos</li>
+        <li>Funil de vendas WhatsApp</li>
+        ${destaque?'<li>Suporte prioritário</li>':''}
+      </ul>
+      <button class="btn-assinar" onclick="assinar(${p.id},'${p.nome}',${preco})">Assinar agora</button>
+    </div>`;
+  }).join('');
+}
+
+async function assinar(planoId, nome, preco) {
+  const btns = document.querySelectorAll('.btn-assinar');
+  btns.forEach(b=>b.disabled=true);
+  const r = await fetch('/api/assinar', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({plano_id:planoId})});
+  const d = await r.json();
+  btns.forEach(b=>b.disabled=false);
+  if(d.error) { alert('Erro: '+d.error); return; }
+  if(d.redirect) { window.location = d.redirect; return; }
+  // Mostra PIX
+  document.getElementById('pix-plano-desc').textContent = `Plano ${nome} — R$ ${preco.toFixed(2).replace('.',',')} /mês`;
+  document.getElementById('pix-code').textContent = d.pix_code || '(código PIX não disponível)';
+  document.getElementById('pix-status').textContent = 'Aguardando pagamento...';
+  document.getElementById('pix-dot').className = 'dot';
+  document.getElementById('modal-pix').style.display = 'flex';
+  iniciarPolling();
+}
+
+function copiarPix() {
+  const code = document.getElementById('pix-code').textContent;
+  navigator.clipboard.writeText(code).then(()=>{
+    const btn = document.querySelector('.btn-copiar');
+    btn.textContent = '✔ Copiado!';
+    setTimeout(()=>btn.textContent='📋 Copiar código PIX', 2000);
+  });
+}
+
+function iniciarPolling() {
+  if(_polling) clearInterval(_polling);
+  _polling = setInterval(async () => {
+    const r = await fetch('/api/minha-assinatura');
+    const d = await r.json();
+    if(d.ativa) {
+      clearInterval(_polling);
+      document.getElementById('pix-dot').className = 'dot pago';
+      document.getElementById('pix-status').textContent = '✔ Pagamento confirmado! Redirecionando...';
+      setTimeout(()=>window.location='/', 1500);
+    }
+  }, 5000);
+}
+
+function fecharPix() {
+  if(_polling) clearInterval(_polling);
+  document.getElementById('modal-pix').style.display = 'none';
+}
+
+carregarPlanos();
+</script>
+</body>
+</html>

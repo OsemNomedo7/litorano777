@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
-import io, os, threading, webbrowser, json, re, hashlib
+import io, os, threading, webbrowser, json, re, hashlib, datetime
 import fitz
+import urllib.request as _ureq, urllib.error as _uerr
 from flask import Flask, request, send_file, jsonify, session, redirect, Response
 from database import get_db, h, init_db, migrate_from_files, DATA_DIR
 
@@ -9,6 +10,7 @@ IPTU_PDF     = os.path.join(BASE, 'template_iptu.pdf')
 LUZ_PDF      = os.path.join(BASE, 'template_luz.pdf')
 HTML_APP     = os.path.join(BASE, 'gerador-contrato.html')
 HTML_ADMIN   = os.path.join(BASE, 'admin.html')
+HTML_PLANOS  = os.path.join(BASE, 'planos.html')
 LOGO         = os.path.join(BASE, 'logolitorano.png')
 IMOVEIS_DIR  = os.path.join(BASE, 'imoveis')
 
@@ -16,9 +18,89 @@ app = Flask(__name__)
 app.secret_key = os.environ.get('SECRET_KEY', 'ltr_x9k2#p7m4@q8n1!v3z5_wRt')
 app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024
 
+# ─── META ADS CONFIG ──────────────────────────────────────────────────────────
+# Valores padrão do env; podem ser sobrescritos pelo banco (admin → Configurações → Meta App)
+_META_APP_ID_ENV     = os.environ.get('META_APP_ID', '')
+_META_APP_SECRET_ENV = os.environ.get('META_APP_SECRET', '')
+META_API_VER         = 'v19.0'
+
+def _get_meta_app_creds():
+    """Retorna (app_id, app_secret) lendo do banco, com fallback nas env vars."""
+    try:
+        conn = get_db()
+        rows = conn.execute("SELECT chave,valor FROM config WHERE chave IN ('meta_app_id','meta_app_secret')").fetchall()
+        conn.close()
+        cfg = {r['chave']: r['valor'] for r in rows}
+        app_id     = cfg.get('meta_app_id','').strip()     or _META_APP_ID_ENV
+        app_secret = cfg.get('meta_app_secret','').strip() or _META_APP_SECRET_ENV
+        return app_id, app_secret
+    except Exception:
+        return _META_APP_ID_ENV, _META_APP_SECRET_ENV
+
+# ─── SIGILOPAY CONFIG ─────────────────────────────────────────────────────────
+# Configure estas variáveis no ambiente de produção (.env ou painel do Render)
+SIGILOPAY_TOKEN          = os.environ.get('SIGILOPAY_TOKEN', '')
+SIGILOPAY_API_URL        = os.environ.get('SIGILOPAY_API_URL', 'https://api.sigilopay.com.br/v1')
+SIGILOPAY_WEBHOOK_SECRET = os.environ.get('SIGILOPAY_WEBHOOK_SECRET', '')
+APP_BASE_URL             = os.environ.get('APP_BASE_URL', 'http://localhost:5000')
+# MODO_TESTE=1 aprova pagamentos automaticamente sem chamar a API real
+MODO_TESTE               = os.environ.get('MODO_TESTE', '1') == '1'
+
+def sigilopay_criar_cobranca(valor_reais, descricao, nome, email, ref_id):
+    """Cria cobrança PIX via SigiloPay. Ajuste os campos conforme a documentação da sua conta."""
+    if MODO_TESTE or not SIGILOPAY_TOKEN:
+        return {
+            'id': f'teste_{ref_id}',
+            'pix_code': '00020126580014BR.GOV.BCB.PIX0136TESTE-SIGILOPAY-PIX-CODE-AQUI5204000053039865802BR5913LITORANO SAS6009SAO PAULO62070503***6304ABCD',
+            'qr_code_url': None,
+            'payment_url': None,
+            '_teste': True,
+        }
+    payload = json.dumps({
+        'amount': int(round(valor_reais * 100)),   # centavos
+        'description': descricao,
+        'payment_method': 'pix',
+        'customer': {'name': nome, 'email': email or ''},
+        'external_reference': str(ref_id),
+        'callback_url': f'{APP_BASE_URL}/webhook/sigilopay',
+    }).encode()
+    req = _ureq.Request(
+        f'{SIGILOPAY_API_URL}/charges',
+        data=payload,
+        headers={'Authorization': f'Bearer {SIGILOPAY_TOKEN}', 'Content-Type': 'application/json'},
+    )
+    with _ureq.urlopen(req, timeout=30) as r:
+        resp = json.loads(r.read())
+    # Adapte os campos abaixo conforme o retorno real da SigiloPay
+    return {
+        'id': resp.get('id') or resp.get('charge_id') or resp.get('transaction_id'),
+        'pix_code': (resp.get('pix') or {}).get('code') or resp.get('pix_code') or resp.get('qr_code'),
+        'qr_code_url': (resp.get('pix') or {}).get('qr_code_url') or resp.get('qr_code_url'),
+        'payment_url': resp.get('payment_url') or resp.get('url'),
+        '_raw': resp,
+    }
+
 # ─── AUTH ─────────────────────────────────────────────────────────────────────
 
-PUBLIC = {'login', 'logo', 'static', 'api_debug_fotos', 'api_foto_fs', 'imovel_link'}
+PUBLIC = {
+    'login', 'logo', 'static', 'api_debug_fotos', 'api_foto_fs', 'imovel_link',
+    'planos_page', 'api_cadastro', 'webhook_sigilopay',
+}
+# Rotas que exigem login mas NÃO exigem assinatura ativa
+SEM_ASSINATURA_OK = {'logout', 'api_assinar', 'api_minha_assinatura'}
+
+def _tem_assinatura_ativa(user_id):
+    conn = get_db()
+    try:
+        row = conn.execute('''
+            SELECT id FROM assinaturas
+            WHERE user_id=? AND status='ativa'
+            AND (expira_em IS NULL OR expira_em > datetime('now','localtime'))
+            ORDER BY id DESC LIMIT 1
+        ''', (user_id,)).fetchone()
+        return row is not None
+    finally:
+        conn.close()
 
 @app.before_request
 def check_auth():
@@ -32,6 +114,14 @@ def check_auth():
         if request.path.startswith('/admin/api/'):
             return jsonify({'error': 'forbidden'}), 403
         return redirect('/')
+    # Usuários comuns sem assinatura ativa → página de planos
+    if (session.get('role') == 'user'
+            and request.endpoint not in SEM_ASSINATURA_OK
+            and not request.path.startswith('/admin')):
+        if not _tem_assinatura_ativa(session.get('user_id')):
+            if request.path.startswith('/api/'):
+                return jsonify({'error': 'subscription_required', 'redirect': '/planos'}), 402
+            return redirect('/planos')
 
 def log_action(acao, detalhes=None):
     try:
@@ -57,29 +147,83 @@ _LOGIN_HTML = '''<!DOCTYPE html>
 *{box-sizing:border-box;margin:0;padding:0}
 body{background:#03030d;min-height:100vh;display:flex;align-items:center;justify-content:center;font-family:'Share Tech Mono',monospace;
 background-image:linear-gradient(rgba(0,245,255,.02) 1px,transparent 1px),linear-gradient(90deg,rgba(0,245,255,.02) 1px,transparent 1px);background-size:44px 44px;}
-.card{background:#07071a;border:1px solid rgba(0,245,255,.15);border-radius:16px;padding:48px 40px 40px;width:100%;max-width:380px;text-align:center;box-shadow:0 0 60px rgba(0,245,255,.06)}
-.logo{margin-bottom:28px}.logo img{max-width:320px;height:auto}
-.label{color:rgba(0,245,255,.5);font-size:10px;letter-spacing:2px;text-transform:uppercase;text-align:left;margin-bottom:6px;margin-top:20px}
-input{width:100%;background:rgba(255,255,255,.04);border:1px solid rgba(0,245,255,.15);border-radius:8px;color:#e0e0f0;font-family:'Share Tech Mono',monospace;font-size:14px;padding:11px 14px;outline:none;transition:.2s}
+.card{background:#07071a;border:1px solid rgba(0,245,255,.15);border-radius:16px;padding:40px 36px 36px;width:100%;max-width:400px;text-align:center;box-shadow:0 0 60px rgba(0,245,255,.06)}
+.logo{margin-bottom:24px}.logo img{max-width:280px;height:auto}
+.tabs{display:flex;gap:0;border:1px solid rgba(0,245,255,.15);border-radius:8px;margin-bottom:24px;overflow:hidden}
+.tab{flex:1;padding:9px;cursor:pointer;font-family:'Share Tech Mono',monospace;font-size:11px;letter-spacing:1.5px;text-transform:uppercase;border:none;background:transparent;color:rgba(0,245,255,.4);transition:.2s}
+.tab.active{background:rgba(0,245,255,.1);color:#00f5ff}
+.f-label{color:rgba(0,245,255,.5);font-size:10px;letter-spacing:2px;text-transform:uppercase;text-align:left;margin-bottom:5px;margin-top:16px;display:block}
+input{width:100%;background:rgba(255,255,255,.04);border:1px solid rgba(0,245,255,.15);border-radius:8px;color:#e0e0f0;font-family:'Share Tech Mono',monospace;font-size:14px;padding:10px 13px;outline:none;transition:.2s}
 input:focus{border-color:rgba(0,245,255,.45);box-shadow:0 0 0 3px rgba(0,245,255,.07)}
-.btn{margin-top:28px;width:100%;background:linear-gradient(135deg,rgba(0,245,255,.15),rgba(0,245,255,.08));border:1px solid rgba(0,245,255,.3);border-radius:8px;color:#00f5ff;font-family:'Share Tech Mono',monospace;font-size:13px;letter-spacing:2px;padding:13px;cursor:pointer;transition:.2s;text-transform:uppercase}
+.btn{margin-top:22px;width:100%;background:linear-gradient(135deg,rgba(0,245,255,.15),rgba(0,245,255,.08));border:1px solid rgba(0,245,255,.3);border-radius:8px;color:#00f5ff;font-family:'Share Tech Mono',monospace;font-size:13px;letter-spacing:2px;padding:13px;cursor:pointer;transition:.2s;text-transform:uppercase}
 .btn:hover{background:linear-gradient(135deg,rgba(0,245,255,.25),rgba(0,245,255,.15));border-color:rgba(0,245,255,.6)}
-.erro{margin-top:16px;color:#ff2d78;font-size:11px;letter-spacing:1px;min-height:16px}
-.versao{margin-top:28px;color:rgba(255,255,255,.12);font-size:9px;letter-spacing:2px}
-@media(max-width:480px){.card{padding:36px 20px 32px;border-radius:12px}.logo img{max-width:220px}input{font-size:16px}}
+.msg{margin-top:14px;font-size:11px;letter-spacing:1px;min-height:16px}
+.msg.erro{color:#ff2d78}.msg.ok{color:#39ff14}
+.versao{margin-top:24px;color:rgba(255,255,255,.12);font-size:9px;letter-spacing:2px}
+@media(max-width:480px){.card{padding:32px 18px;border-radius:12px}.logo img{max-width:200px}input{font-size:16px}}
 </style></head><body>
 <div class="card">
   <div class="logo"><img src="/logo" alt="LITORANO"></div>
-  <form method="POST" action="/login" autocomplete="off">
-    <div class="label">Login</div>
-    <input type="text" name="u" autofocus autocomplete="off" spellcheck="false">
-    <div class="label">Senha</div>
-    <input type="password" name="p" autocomplete="off">
-    <button class="btn" type="submit">Entrar</button>
-    <div class="erro">{{ERRO}}</div>
-  </form>
+  <div class="tabs">
+    <button class="tab active" onclick="setTab('login')">Entrar</button>
+    <button class="tab" onclick="setTab('cadastro')">Criar Conta</button>
+  </div>
+
+  <!-- FORMULÁRIO LOGIN -->
+  <div id="frm-login">
+    <form method="POST" action="/login" autocomplete="off">
+      <label class="f-label">Login</label>
+      <input type="text" name="u" autofocus autocomplete="off" spellcheck="false">
+      <label class="f-label">Senha</label>
+      <input type="password" name="p" autocomplete="off">
+      <button class="btn" type="submit">Entrar</button>
+      <div class="msg erro">{{ERRO}}</div>
+    </form>
+  </div>
+
+  <!-- FORMULÁRIO CADASTRO -->
+  <div id="frm-cadastro" style="display:none">
+    <label class="f-label">Nome</label>
+    <input type="text" id="c-nome" placeholder="Seu nome completo" autocomplete="off">
+    <label class="f-label">Login</label>
+    <input type="text" id="c-user" placeholder="nome de usuário" autocomplete="off" spellcheck="false">
+    <label class="f-label">E-mail</label>
+    <input type="email" id="c-email" placeholder="seu@email.com" autocomplete="off">
+    <label class="f-label">Senha</label>
+    <input type="password" id="c-senha" placeholder="mínimo 6 caracteres">
+    <label class="f-label">Confirmar Senha</label>
+    <input type="password" id="c-confirm" placeholder="repita a senha">
+    <button class="btn" type="button" onclick="cadastrar()">Criar Conta</button>
+    <div class="msg" id="c-msg"></div>
+  </div>
+
   <div class="versao">LITORANO 1.0 &mdash; SISTEMA PRIVADO</div>
-</div></body></html>'''
+</div>
+<script>
+function setTab(t) {
+  document.querySelectorAll('.tab').forEach((el,i)=>el.classList.toggle('active',i===(t==='login'?0:1)));
+  document.getElementById('frm-login').style.display = t==='login'?'':'none';
+  document.getElementById('frm-cadastro').style.display = t==='cadastro'?'':'none';
+}
+async function cadastrar() {
+  const nome=document.getElementById('c-nome').value.trim();
+  const user=document.getElementById('c-user').value.trim();
+  const email=document.getElementById('c-email').value.trim();
+  const senha=document.getElementById('c-senha').value;
+  const confirm=document.getElementById('c-confirm').value;
+  const msg=document.getElementById('c-msg');
+  if(!nome||!user||!senha){msg.className='msg erro';msg.textContent='Preencha todos os campos.';return;}
+  if(senha!==confirm){msg.className='msg erro';msg.textContent='As senhas não coincidem.';return;}
+  if(senha.length<6){msg.className='msg erro';msg.textContent='Senha mínima: 6 caracteres.';return;}
+  msg.className='msg';msg.textContent='Criando conta...';
+  const r=await fetch('/api/cadastro',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({nome,username:user,email,senha})});
+  const d=await r.json();
+  if(d.error){msg.className='msg erro';msg.textContent=d.error;return;}
+  msg.className='msg ok';msg.textContent='Conta criada! Redirecionando...';
+  setTimeout(()=>window.location='/planos',1200);
+}
+</script>
+</body></html>'''
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
@@ -108,6 +252,519 @@ def logout():
     log_action('logout')
     session.clear()
     return redirect('/login')
+
+# ─── CADASTRO ─────────────────────────────────────────────────────────────────
+
+@app.route('/api/cadastro', methods=['POST'])
+def api_cadastro():
+    d = request.json or {}
+    username = (d.get('username') or '').strip()
+    email    = (d.get('email') or '').strip()
+    nome     = (d.get('nome') or '').strip()
+    senha    = d.get('senha', '')
+    if not username or not senha:
+        return jsonify({'error': 'Login e senha obrigatórios'}), 400
+    if len(senha) < 6:
+        return jsonify({'error': 'Senha mínima: 6 caracteres'}), 400
+    conn = get_db()
+    try:
+        conn.execute('INSERT INTO users (username,pwd_hash,role,email) VALUES (?,?,?,?)',
+                     (username, h(senha), 'user', email))
+        conn.commit()
+        uid = conn.execute('SELECT id FROM users WHERE username=?', (username,)).fetchone()[0]
+        # Auto-login após cadastro
+        session.clear()
+        session['user_id'] = uid
+        session['username'] = username
+        session['role'] = 'user'
+        return jsonify({'ok': True})
+    except Exception:
+        return jsonify({'error': 'Este login já está em uso'}), 409
+    finally:
+        conn.close()
+
+# ─── PÁGINA DE PLANOS ─────────────────────────────────────────────────────────
+
+@app.route('/planos')
+def planos_page():
+    if os.path.exists(HTML_PLANOS):
+        html = open(HTML_PLANOS, encoding='utf-8').read()
+        html = html.replace('{{USERNAME}}', session.get('username', ''))
+        return html, 200, {'Content-Type': 'text/html; charset=utf-8'}
+    return 'Página de planos não encontrada', 404
+
+@app.route('/api/planos-publicos')
+def api_planos_publicos():
+    """Lista planos ativos com preço — acessível sem assinatura."""
+    conn = get_db()
+    rows = conn.execute('SELECT id,nome,descricao,max_pdfs_mes,preco,tipo FROM planos WHERE ativo=1 AND id>1 ORDER BY preco').fetchall()
+    conn.close()
+    return jsonify([dict(r) for r in rows])
+
+@app.route('/api/minha-assinatura')
+def api_minha_assinatura():
+    """Retorna a assinatura ativa do usuário logado."""
+    uid = session.get('user_id')
+    conn = get_db()
+    row = conn.execute('''
+        SELECT a.id, a.status, a.pago_em, a.expira_em, a.external_id,
+               p.nome as plano_nome, p.max_pdfs_mes, p.preco
+        FROM assinaturas a
+        JOIN planos p ON p.id = a.plano_id
+        WHERE a.user_id=?
+        ORDER BY a.id DESC LIMIT 1
+    ''', (uid,)).fetchone()
+    conn.close()
+    if not row:
+        return jsonify({'status': 'none'})
+    d = dict(row)
+    d['ativa'] = (d['status'] == 'ativa' and
+                  (not d['expira_em'] or d['expira_em'] > datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')))
+    return jsonify(d)
+
+@app.route('/api/assinar', methods=['POST'])
+def api_assinar():
+    """Cria cobrança no gateway para o plano escolhido."""
+    d = request.json or {}
+    plano_id = d.get('plano_id')
+    if not plano_id:
+        return jsonify({'error': 'Plano não informado'}), 400
+    uid  = session.get('user_id')
+    conn = get_db()
+    plano = conn.execute('SELECT * FROM planos WHERE id=? AND ativo=1', (plano_id,)).fetchone()
+    if not plano:
+        conn.close()
+        return jsonify({'error': 'Plano inválido'}), 400
+    user = conn.execute('SELECT username, email FROM users WHERE id=?', (uid,)).fetchone()
+    # Cria registro pendente
+    conn.execute('INSERT INTO assinaturas (user_id,plano_id,status,valor) VALUES (?,?,?,?)',
+                 (uid, plano_id, 'pendente', plano['preco']))
+    assn_id = conn.lastrowid
+    conn.commit()
+    def _expira_em(tipo):
+        now = datetime.datetime.now()
+        if tipo == 'semanal':    return (now + datetime.timedelta(days=7)).strftime('%Y-%m-%d %H:%M:%S')
+        if tipo == 'vitalicio':  return None
+        return (now + datetime.timedelta(days=30)).strftime('%Y-%m-%d %H:%M:%S')
+
+    # Modo teste: aprova imediatamente
+    if MODO_TESTE or not SIGILOPAY_TOKEN:
+        expira = _expira_em(plano['tipo'])
+        conn.execute('''UPDATE assinaturas SET status='ativa', external_id=?,
+            pago_em=datetime('now','localtime'), expira_em=? WHERE id=?''',
+            (f'teste_{assn_id}', expira, assn_id))
+        conn.execute('UPDATE users SET plano_id=? WHERE id=?', (plano_id, uid))
+        conn.commit(); conn.close()
+        return jsonify({'ok': True, 'modo_teste': True, 'redirect': '/'})
+    # Produção: cria cobrança real
+    try:
+        cobranca = sigilopay_criar_cobranca(
+            valor_reais=plano['preco'],
+            descricao=f'LITORANO — Plano {plano["nome"]}',
+            nome=user['username'],
+            email=user['email'] or '',
+            ref_id=assn_id,
+        )
+        conn.execute('UPDATE assinaturas SET external_id=? WHERE id=?', (cobranca['id'], assn_id))
+        conn.commit(); conn.close()
+        return jsonify({
+            'ok': True,
+            'assn_id': assn_id,
+            'pix_code': cobranca.get('pix_code'),
+            'qr_code_url': cobranca.get('qr_code_url'),
+            'payment_url': cobranca.get('payment_url'),
+        })
+    except Exception as e:
+        conn.execute('DELETE FROM assinaturas WHERE id=?', (assn_id,))
+        conn.commit(); conn.close()
+        return jsonify({'error': str(e)}), 500
+
+# ─── WEBHOOK SIGILOPAY ────────────────────────────────────────────────────────
+
+@app.route('/webhook/sigilopay', methods=['POST'])
+def webhook_sigilopay():
+    """Recebe confirmação de pagamento da SigiloPay e ativa a assinatura."""
+    data = request.json or {}
+    # Adapte os campos abaixo conforme o payload real da SigiloPay
+    # Campos comuns em gateways BR: id/charge_id, status, external_reference
+    ext_id     = data.get('id') or data.get('charge_id') or data.get('transaction_id')
+    ref_id     = data.get('external_reference') or data.get('ref_id')
+    status_raw = (data.get('status') or '').lower()
+    pago       = status_raw in ('paid', 'confirmed', 'approved', 'pago', 'aprovado', 'completed')
+    if not pago:
+        return jsonify({'ok': True, 'ignored': True})
+    conn = get_db()
+    assn = None
+    if ext_id:
+        assn = conn.execute('SELECT * FROM assinaturas WHERE external_id=?', (ext_id,)).fetchone()
+    if not assn and ref_id:
+        assn = conn.execute('SELECT * FROM assinaturas WHERE id=?', (ref_id,)).fetchone()
+    if assn and assn['status'] != 'ativa':
+        plano_tipo = conn.execute('SELECT tipo FROM planos WHERE id=?', (assn['plano_id'],)).fetchone()
+        tipo = plano_tipo['tipo'] if plano_tipo else 'mensal'
+        now = datetime.datetime.now()
+        if tipo == 'semanal':    expira = (now + datetime.timedelta(days=7)).strftime('%Y-%m-%d %H:%M:%S')
+        elif tipo == 'vitalicio': expira = None
+        else:                    expira = (now + datetime.timedelta(days=30)).strftime('%Y-%m-%d %H:%M:%S')
+        conn.execute('''UPDATE assinaturas SET status='ativa', external_id=?,
+            pago_em=datetime('now','localtime'), expira_em=? WHERE id=?''',
+            (ext_id or assn['external_id'], expira, assn['id']))
+        conn.execute('UPDATE users SET plano_id=? WHERE id=?', (assn['plano_id'], assn['user_id']))
+        conn.execute('INSERT INTO logs (user_id,user_nome,acao,detalhes,ip) VALUES (?,?,?,?,?)',
+                     (assn['user_id'], 'webhook', 'pagamento_confirmado',
+                      json.dumps({'assn_id': assn['id'], 'plano_id': assn['plano_id'], 'gateway': 'sigilopay'}),
+                      request.remote_addr))
+        conn.commit()
+    conn.close()
+    return jsonify({'ok': True})
+
+# ─── META ADS OAUTH ───────────────────────────────────────────────────────────
+
+@app.route('/auth/meta')
+def auth_meta():
+    """Redireciona o usuário para o OAuth do Meta/Facebook."""
+    meta_app_id, _ = _get_meta_app_creds()
+    if not meta_app_id:
+        return '''<!DOCTYPE html><html><head><meta charset="UTF-8">
+        <style>body{background:#03030d;color:#ccd0f0;font-family:sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0}
+        .box{background:#07071a;border:1px solid rgba(0,245,255,.2);border-radius:14px;padding:32px;max-width:420px;text-align:center}
+        h2{color:#00f5ff;font-size:16px;margin-bottom:12px}p{font-size:13px;color:#4a4a7a;line-height:1.6}
+        a{display:inline-block;margin-top:20px;padding:10px 24px;background:rgba(0,245,255,.1);border:1px solid rgba(0,245,255,.3);border-radius:8px;color:#00f5ff;text-decoration:none;font-size:12px}</style>
+        </head><body><div class="box">
+        <h2>⚠️ Meta App não configurado</h2>
+        <p>O administrador precisa configurar o <strong>App ID</strong> e o <strong>App Secret</strong> do Facebook.<br><br>
+        Acesse o painel admin → <strong>Configurações → Meta App (OAuth)</strong> e insira as credenciais.</p>
+        <a href="/">← Voltar</a></div></body></html>''', 500
+    base_url = _get_app_base_url()
+    callback = f'{base_url}/auth/meta/callback'
+    scope = 'ads_management,ads_read'
+    url = (f'https://www.facebook.com/dialog/oauth'
+           f'?client_id={meta_app_id}'
+           f'&redirect_uri={callback}'
+           f'&scope={scope}'
+           f'&state={session.get("user_id")}')
+    return redirect(url)
+
+@app.route('/auth/meta/callback')
+def auth_meta_callback():
+    """Recebe o código do Meta, troca por access_token e salva."""
+    code = request.args.get('code')
+    error = request.args.get('error')
+    if error or not code:
+        return redirect('/?meta_error=1')
+    meta_app_id, meta_app_secret = _get_meta_app_creds()
+    base_url = _get_app_base_url()
+    callback = f'{base_url}/auth/meta/callback'
+    token_url = (f'https://graph.facebook.com/{META_API_VER}/oauth/access_token'
+                 f'?client_id={meta_app_id}&redirect_uri={callback}'
+                 f'&client_secret={meta_app_secret}&code={code}')
+    try:
+        with _ureq.urlopen(token_url, timeout=15) as r:
+            data = json.loads(r.read())
+        access_token = data.get('access_token')
+        expires_in   = data.get('expires_in', 0)
+        expires_at   = None
+        if expires_in:
+            expires_at = (datetime.datetime.now() + datetime.timedelta(seconds=int(expires_in))).strftime('%Y-%m-%d %H:%M:%S')
+        # Troca por token de longa duração
+        lt_url = (f'https://graph.facebook.com/{META_API_VER}/oauth/access_token'
+                  f'?grant_type=fb_exchange_token&client_id={meta_app_id}'
+                  f'&client_secret={meta_app_secret}&fb_exchange_token={access_token}')
+        try:
+            with _ureq.urlopen(lt_url, timeout=15) as r2:
+                lt = json.loads(r2.read())
+            access_token = lt.get('access_token', access_token)
+            lt_exp = lt.get('expires_in', 0)
+            if lt_exp:
+                expires_at = (datetime.datetime.now() + datetime.timedelta(seconds=int(lt_exp))).strftime('%Y-%m-%d %H:%M:%S')
+        except Exception:
+            pass
+        conn = get_db()
+        conn.execute('UPDATE users SET meta_access_token=?, meta_token_expires=? WHERE id=?',
+                     (access_token, expires_at, session.get('user_id')))
+        conn.commit(); conn.close()
+        log_action('meta_conectado')
+    except Exception as e:
+        return redirect(f'/?meta_error={e}')
+    return redirect('/?meta_ok=1')
+
+@app.route('/api/meta/status')
+def api_meta_status():
+    """Retorna se o usuário tem Meta Ads conectado."""
+    conn = get_db()
+    row = conn.execute('SELECT meta_access_token, meta_token_expires, meta_ad_account_id FROM users WHERE id=?',
+                       (session.get('user_id'),)).fetchone()
+    conn.close()
+    if not row or not row['meta_access_token']:
+        return jsonify({'conectado': False})
+    expirado = False
+    if row['meta_token_expires']:
+        expirado = row['meta_token_expires'] < datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    return jsonify({
+        'conectado': not expirado,
+        'expira_em': row['meta_token_expires'],
+        'ad_account_id': row['meta_ad_account_id'] or '',
+    })
+
+@app.route('/api/meta/desconectar', methods=['POST'])
+def api_meta_desconectar():
+    conn = get_db()
+    conn.execute('UPDATE users SET meta_access_token=NULL, meta_token_expires=NULL, meta_ad_account_id=? WHERE id=?',
+                 ('', session.get('user_id')))
+    conn.commit(); conn.close()
+    log_action('meta_desconectado')
+    return jsonify({'ok': True})
+
+@app.route('/api/meta/salvar-conta', methods=['POST'])
+def api_meta_salvar_conta():
+    """Salva o ID da conta de anúncios escolhida pelo usuário."""
+    ad_account_id = (request.json or {}).get('ad_account_id', '').strip()
+    conn = get_db()
+    conn.execute('UPDATE users SET meta_ad_account_id=? WHERE id=?',
+                 (ad_account_id, session.get('user_id')))
+    conn.commit(); conn.close()
+    return jsonify({'ok': True})
+
+def _get_app_base_url():
+    """Lê APP_BASE_URL do banco (admin → webhook config), com fallback na env var."""
+    try:
+        conn = get_db()
+        row = conn.execute("SELECT valor FROM config WHERE chave='app_base_url'").fetchone()
+        conn.close()
+        return (row['valor'] or '').strip().rstrip('/') or APP_BASE_URL
+    except Exception:
+        return APP_BASE_URL
+
+# ─── META MARKETING API — PROXY ───────────────────────────────────────────────
+
+def _meta_token():
+    conn = get_db()
+    row = conn.execute('SELECT meta_access_token FROM users WHERE id=?', (session.get('user_id'),)).fetchone()
+    conn.close()
+    return row['meta_access_token'] if row else None
+
+def _meta_account_id():
+    conn = get_db()
+    row = conn.execute('SELECT meta_ad_account_id FROM users WHERE id=?', (session.get('user_id'),)).fetchone()
+    conn.close()
+    aid = row['meta_ad_account_id'] if row else ''
+    if aid and not aid.startswith('act_'):
+        aid = 'act_' + aid
+    return aid
+
+def _meta_get(path, params=None):
+    import urllib.parse
+    token = _meta_token()
+    if not token:
+        raise Exception('Meta Ads não conectado')
+    p = dict(params or {})
+    p['access_token'] = token
+    qs = urllib.parse.urlencode(p)
+    url = f'https://graph.facebook.com/{META_API_VER}/{path}?{qs}'
+    req = _ureq.Request(url)
+    with _ureq.urlopen(req, timeout=20) as r:
+        return json.loads(r.read())
+
+def _meta_post(path, data):
+    import urllib.parse
+    token = _meta_token()
+    if not token:
+        raise Exception('Meta Ads não conectado')
+    data['access_token'] = token
+    payload = urllib.parse.urlencode(data).encode()
+    req = _ureq.Request(f'https://graph.facebook.com/{META_API_VER}/{path}',
+                        data=payload,
+                        headers={'Content-Type': 'application/x-www-form-urlencoded'})
+    with _ureq.urlopen(req, timeout=30) as r:
+        return json.loads(r.read())
+
+@app.route('/api/meta/contas')
+def api_meta_contas():
+    """Lista as contas de anúncios do usuário."""
+    try:
+        data = _meta_get('me/adaccounts', {'fields': 'id,name,account_status,currency,amount_spent'})
+        return jsonify(data.get('data', []))
+    except Exception as e:
+        return jsonify({'error': str(e)}), 400
+
+@app.route('/api/meta/campanhas')
+def api_meta_campanhas():
+    """Lista campanhas da conta de anúncios do usuário."""
+    try:
+        account = _meta_account_id()
+        if not account:
+            return jsonify({'error': 'Configure o ID da conta de anúncios primeiro'}), 400
+        fields = 'id,name,status,objective,daily_budget,lifetime_budget,start_time,stop_time,created_time,insights{spend,impressions,clicks,actions}'
+        data = _meta_get(f'{account}/campaigns', {'fields': fields, 'limit': 50})
+        return jsonify(data.get('data', []))
+    except Exception as e:
+        return jsonify({'error': str(e)}), 400
+
+@app.route('/api/meta/campanhas', methods=['POST'])
+def api_meta_criar_campanha():
+    """Cria campanha + conjunto de anúncios."""
+    try:
+        d = request.json or {}
+        account = _meta_account_id()
+        if not account:
+            return jsonify({'error': 'Configure o ID da conta de anúncios primeiro'}), 400
+
+        # 1. Cria a Campanha
+        camp = _meta_post(f'{account}/campaigns', {
+            'name': d.get('nome', 'Campanha Litorano'),
+            'objective': 'MESSAGES',
+            'status': 'PAUSED',
+            'special_ad_categories': 'NONE',
+        })
+        camp_id = camp.get('id')
+        if not camp_id:
+            return jsonify({'error': 'Erro ao criar campanha', 'raw': camp}), 400
+
+        # 2. Cria o Ad Set
+        orcamento_centavos = str(int(float(d.get('orcamento', 30)) * 100))
+        tipo_orcamento = d.get('tipo_orcamento', 'daily')  # daily | lifetime
+
+        # Geo: se tiver estado do imóvel, filtra por estado brasileiro
+        estados_br = {
+            'AC':'Acre','AL':'Alagoas','AP':'Amapá','AM':'Amazonas','BA':'Bahia',
+            'CE':'Ceará','DF':'Distrito Federal','ES':'Espírito Santo','GO':'Goiás',
+            'MA':'Maranhão','MT':'Mato Grosso','MS':'Mato Grosso do Sul','MG':'Minas Gerais',
+            'PA':'Pará','PB':'Paraíba','PR':'Paraná','PE':'Pernambuco','PI':'Piauí',
+            'RJ':'Rio de Janeiro','RN':'Rio Grande do Norte','RS':'Rio Grande do Sul',
+            'RO':'Rondônia','RR':'Roraima','SC':'Santa Catarina','SP':'São Paulo',
+            'SE':'Sergipe','TO':'Tocantins',
+        }
+        estado_sigla = (d.get('estado') or '').strip().upper()
+        geo = {'countries': ['BR']}
+        if estado_sigla in estados_br:
+            # Meta usa key 'regions' para estados; usamos o nome completo como fallback
+            geo = {'countries': ['BR']}  # manter BR; Meta city targeting requer ID da API
+
+        targeting = json.dumps({
+            'geo_locations': geo,
+            'age_min': int(d.get('idade_min', 18)),
+            'age_max': int(d.get('idade_max', 65)),
+        })
+
+        cidade_label = d.get('cidade', '')
+        estado_label = d.get('estado', '')
+        local_label  = f' [{cidade_label}/{estado_label}]' if cidade_label else ''
+        adset_data = {
+            'name': d.get('nome', 'Campanha Litorano') + local_label + ' — Conjunto',
+            'campaign_id': camp_id,
+            'billing_event': 'IMPRESSIONS',
+            'optimization_goal': 'CONVERSATIONS',
+            'bid_strategy': 'LOWEST_COST_WITHOUT_CAP',
+            'targeting': targeting,
+            'status': 'PAUSED',
+            'destination_type': 'WHATSAPP',
+        }
+        if tipo_orcamento == 'daily':
+            adset_data['daily_budget'] = orcamento_centavos
+        else:
+            adset_data['lifetime_budget'] = orcamento_centavos
+            if d.get('data_fim'):
+                adset_data['end_time'] = d.get('data_fim')
+
+        if d.get('data_inicio'):
+            adset_data['start_time'] = d.get('data_inicio')
+
+        adset = _meta_post(f'{account}/adsets', adset_data)
+        log_action('meta_criar_campanha', {'camp_id': camp_id, 'nome': d.get('nome')})
+        return jsonify({'ok': True, 'campaign_id': camp_id, 'adset_id': adset.get('id')})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 400
+
+@app.route('/api/meta/campanhas/<cid>/status', methods=['PUT'])
+def api_meta_toggle_campanha(cid):
+    """Pausa ou ativa uma campanha."""
+    try:
+        novo_status = (request.json or {}).get('status', 'PAUSED')
+        if novo_status not in ('ACTIVE', 'PAUSED'):
+            return jsonify({'error': 'Status inválido'}), 400
+        result = _meta_post(cid, {'status': novo_status})
+        log_action('meta_toggle_campanha', {'camp_id': cid, 'status': novo_status})
+        return jsonify({'ok': True, 'result': result})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 400
+
+@app.route('/api/meta/campanhas/<cid>/orcamento', methods=['PUT'])
+def api_meta_orcamento_campanha(cid):
+    """Atualiza orçamento de um ad set."""
+    try:
+        d = request.json or {}
+        valor = str(int(float(d.get('valor', 30)) * 100))
+        campo = 'daily_budget' if d.get('tipo') == 'daily' else 'lifetime_budget'
+        result = _meta_post(cid, {campo: valor})
+        return jsonify({'ok': True, 'result': result})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 400
+
+@app.route('/api/meta/insights')
+def api_meta_insights():
+    """Retorna insights da conta nos últimos N dias."""
+    try:
+        account = _meta_account_id()
+        if not account:
+            return jsonify({'error': 'Configure o ID da conta de anúncios'}), 400
+        period = request.args.get('period', 'last_7d')
+        fields = 'spend,impressions,clicks,actions,cpc,cpm,reach'
+        data = _meta_get(f'{account}/insights', {
+            'fields': fields,
+            'date_preset': period,
+            'level': 'account',
+        })
+        return jsonify(data.get('data', []))
+    except Exception as e:
+        return jsonify({'error': str(e)}), 400
+
+# ─── ADMIN API — META APP CONFIG ─────────────────────────────────────────────
+
+@app.route('/admin/api/meta-app-config', methods=['GET'])
+def admin_meta_app_config_get():
+    meta_app_id, meta_app_secret = _get_meta_app_creds()
+    base_url = _get_app_base_url()
+    return jsonify({
+        'meta_app_id':     meta_app_id,
+        'meta_app_secret': meta_app_secret,
+        'app_base_url':    base_url,
+        'callback_url':    f'{base_url}/auth/meta/callback',
+    })
+
+@app.route('/admin/api/meta-app-config', methods=['PUT'])
+def admin_meta_app_config_set():
+    d = request.json or {}
+    allowed = {'meta_app_id', 'meta_app_secret', 'app_base_url'}
+    conn = get_db()
+    for k, v in d.items():
+        if k in allowed:
+            conn.execute("INSERT OR REPLACE INTO config (chave,valor,atualizado_em) VALUES (?,?,datetime('now','localtime'))", (k, str(v)))
+    conn.commit(); conn.close()
+    log_action('admin_meta_app_config')
+    return jsonify({'ok': True})
+
+# ─── ADMIN API — WEBHOOK CONFIG ───────────────────────────────────────────────
+
+@app.route('/admin/api/webhook-config', methods=['GET'])
+def admin_webhook_config_get():
+    conn = get_db()
+    rows = conn.execute("SELECT chave, valor FROM config WHERE chave LIKE 'webhook_%' OR chave LIKE 'sigilopay_%'").fetchall()
+    conn.close()
+    cfg = {r['chave']: r['valor'] for r in rows}
+    cfg['webhook_url'] = f'{APP_BASE_URL}/webhook/sigilopay'
+    return jsonify(cfg)
+
+@app.route('/admin/api/webhook-config', methods=['PUT'])
+def admin_webhook_config_set():
+    d = request.json or {}
+    allowed = {'webhook_secret', 'sigilopay_api_url', 'sigilopay_token', 'app_base_url'}
+    conn = get_db()
+    for k, v in d.items():
+        if k in allowed:
+            conn.execute("INSERT OR REPLACE INTO config (chave,valor,atualizado_em) VALUES (?,?,datetime('now','localtime'))", (k, v))
+    conn.commit(); conn.close()
+    log_action('admin_webhook_config')
+    return jsonify({'ok': True})
 
 @app.route('/logo')
 def logo():
@@ -374,11 +1031,42 @@ def editar_luz(d):
         for (x,y,t,sz,bold,cor) in p2_pend: ins(p2,x,y,t,sz,bold,cor)
     buf=io.BytesIO(); doc.save(buf); doc.close(); buf.seek(0); return buf
 
+# ─── HELPERS PLANO ────────────────────────────────────────────────────────────
+
+def _pdfs_mes(conn, user_id):
+    """Conta PDFs gerados pelo usuário no mês atual."""
+    row = conn.execute(
+        "SELECT COUNT(*) FROM logs WHERE user_id=? AND acao IN ('gerar_iptu','gerar_luz') "
+        "AND strftime('%Y-%m', criado_em)=strftime('%Y-%m','now','localtime')",
+        (user_id,)
+    ).fetchone()
+    return row[0] if row else 0
+
+def _check_plano(user_id):
+    """Retorna mensagem de erro se limite atingido, None se ok."""
+    conn = get_db()
+    try:
+        user = conn.execute('SELECT plano_id FROM users WHERE id=?', (user_id,)).fetchone()
+        if not user or not user['plano_id']:
+            return None
+        plano = conn.execute('SELECT max_pdfs_mes FROM planos WHERE id=? AND ativo=1', (user['plano_id'],)).fetchone()
+        if not plano or plano['max_pdfs_mes'] == 0:
+            return None
+        uso = _pdfs_mes(conn, user_id)
+        if uso >= plano['max_pdfs_mes']:
+            return f'Limite de {plano["max_pdfs_mes"]} PDFs por mês atingido. Atualize seu plano.'
+        return None
+    finally:
+        conn.close()
+
 # ─── ROTAS PDF ────────────────────────────────────────────────────────────────
 
 @app.route('/api/gerar-iptu', methods=['POST'])
 def api_iptu():
     try:
+        erro = _check_plano(session.get('user_id'))
+        if erro:
+            return jsonify({'error': erro}), 403
         d = request.json or {}
         buf = editar_iptu(d)
         log_action('gerar_iptu', {'nome': d.get('nome'), 'imovel_id': d.get('imovel_id')})
@@ -389,6 +1077,9 @@ def api_iptu():
 @app.route('/api/gerar-luz', methods=['POST'])
 def api_luz():
     try:
+        erro = _check_plano(session.get('user_id'))
+        if erro:
+            return jsonify({'error': erro}), 403
         d = request.json or {}
         buf = editar_luz(d)
         log_action('gerar_luz', {'nome': d.get('nome'), 'imovel_id': d.get('imovel_id')})
@@ -409,25 +1100,48 @@ def admin():
 def admin_stats():
     conn = get_db()
     stats = {
-        'total_imoveis':  conn.execute('SELECT COUNT(*) FROM imoveis').fetchone()[0],
-        'imoveis_ativos': conn.execute('SELECT COUNT(*) FROM imoveis WHERE ativo=1').fetchone()[0],
-        'total_users':    conn.execute('SELECT COUNT(*) FROM users').fetchone()[0],
-        'users_ativos':   conn.execute('SELECT COUNT(*) FROM users WHERE ativo=1').fetchone()[0],
-        'logs_hoje':      conn.execute("SELECT COUNT(*) FROM logs WHERE criado_em >= date('now','localtime')").fetchone()[0],
-        'logs_total':     conn.execute('SELECT COUNT(*) FROM logs').fetchone()[0],
+        'total_imoveis':     conn.execute('SELECT COUNT(*) FROM imoveis').fetchone()[0],
+        'imoveis_ativos':    conn.execute('SELECT COUNT(*) FROM imoveis WHERE ativo=1').fetchone()[0],
+        'total_users':       conn.execute('SELECT COUNT(*) FROM users').fetchone()[0],
+        'users_ativos':      conn.execute('SELECT COUNT(*) FROM users WHERE ativo=1').fetchone()[0],
+        'logs_hoje':         conn.execute("SELECT COUNT(*) FROM logs WHERE criado_em >= date('now','localtime')").fetchone()[0],
+        'logs_total':        conn.execute('SELECT COUNT(*) FROM logs').fetchone()[0],
+        'assn_ativas':       conn.execute("SELECT COUNT(*) FROM assinaturas WHERE status='ativa' AND (expira_em IS NULL OR expira_em > datetime('now','localtime'))").fetchone()[0],
+        'assn_pendentes':    conn.execute("SELECT COUNT(*) FROM assinaturas WHERE status='pendente'").fetchone()[0],
+        'receita_mes':       conn.execute("SELECT COALESCE(SUM(valor),0) FROM assinaturas WHERE status='ativa' AND strftime('%Y-%m',pago_em)=strftime('%Y-%m','now','localtime')").fetchone()[0],
     }
     logs = conn.execute('SELECT * FROM logs ORDER BY id DESC LIMIT 15').fetchall()
+    # Planos com contagem de assinantes ativos para o painel rápido
+    planos = conn.execute('''
+        SELECT p.id, p.nome, p.descricao, p.max_pdfs_mes, p.preco, p.ativo,
+               COUNT(a.id) as total_assinantes
+        FROM planos p
+        LEFT JOIN assinaturas a ON a.plano_id=p.id AND a.status='ativa'
+            AND (a.expira_em IS NULL OR a.expira_em > datetime('now','localtime'))
+        GROUP BY p.id ORDER BY p.id
+    ''').fetchall()
     conn.close()
-    return jsonify({'stats': stats, 'logs': [dict(r) for r in logs]})
+    return jsonify({'stats': stats, 'logs': [dict(r) for r in logs], 'planos': [dict(p) for p in planos]})
 
 # ─── ADMIN API — USUÁRIOS ─────────────────────────────────────────────────────
 
 @app.route('/admin/api/users', methods=['GET'])
 def admin_users_list():
     conn = get_db()
-    rows = conn.execute('SELECT id,username,role,ativo,criado_em,ultimo_login FROM users ORDER BY id').fetchall()
+    rows = conn.execute('''
+        SELECT u.id, u.username, u.role, u.ativo, u.criado_em, u.ultimo_login,
+               u.plano_id, p.nome as plano_nome, p.max_pdfs_mes
+        FROM users u
+        LEFT JOIN planos p ON p.id = u.plano_id
+        ORDER BY u.id
+    ''').fetchall()
+    result = []
+    for r in rows:
+        d = dict(r)
+        d['pdfs_mes'] = _pdfs_mes(conn, r['id'])
+        result.append(d)
     conn.close()
-    return jsonify([dict(r) for r in rows])
+    return jsonify(result)
 
 @app.route('/admin/api/users', methods=['POST'])
 def admin_users_create():
@@ -435,6 +1149,7 @@ def admin_users_create():
     username = d.get('username','').strip()
     senha = d.get('senha','')
     role = d.get('role','user')
+    plano_id = d.get('plano_id') or None
     if not username or not senha:
         return jsonify({'error': 'Login e senha obrigatórios'}), 400
     if len(senha) < 6:
@@ -443,7 +1158,8 @@ def admin_users_create():
         return jsonify({'error': 'Role inválido'}), 400
     conn = get_db()
     try:
-        conn.execute('INSERT INTO users (username,pwd_hash,role) VALUES (?,?,?)', (username, h(senha), role))
+        conn.execute('INSERT INTO users (username,pwd_hash,role,plano_id) VALUES (?,?,?,?)',
+                     (username, h(senha), role, plano_id))
         conn.commit()
         log_action('admin_criar_user', {'username': username, 'role': role})
         return jsonify({'ok': True})
@@ -455,8 +1171,10 @@ def admin_users_create():
 @app.route('/admin/api/users/<int:uid>', methods=['PUT'])
 def admin_users_edit(uid):
     d = request.json or {}
+    plano_id = d.get('plano_id') or None
     conn = get_db()
-    conn.execute('UPDATE users SET username=?, role=? WHERE id=?', (d.get('username'), d.get('role'), uid))
+    conn.execute('UPDATE users SET username=?, role=?, plano_id=? WHERE id=?',
+                 (d.get('username'), d.get('role'), plano_id, uid))
     conn.commit(); conn.close()
     log_action('admin_editar_user', {'user_id': uid})
     return jsonify({'ok': True})
@@ -500,6 +1218,60 @@ def admin_users_delete(uid):
     conn.execute('DELETE FROM users WHERE id=?', (uid,))
     conn.commit(); conn.close()
     log_action('admin_excluir_user', {'user_id': uid})
+    return jsonify({'ok': True})
+
+# ─── ADMIN API — PLANOS ───────────────────────────────────────────────────────
+
+@app.route('/admin/api/planos', methods=['GET'])
+def admin_planos_list():
+    conn = get_db()
+    rows = conn.execute('''
+        SELECT p.*, COUNT(a.id) as total_assinantes
+        FROM planos p
+        LEFT JOIN assinaturas a ON a.plano_id=p.id AND a.status='ativa'
+            AND (a.expira_em IS NULL OR a.expira_em > datetime('now','localtime'))
+        GROUP BY p.id ORDER BY p.id
+    ''').fetchall()
+    conn.close()
+    return jsonify([dict(r) for r in rows])
+
+@app.route('/admin/api/planos', methods=['POST'])
+def admin_planos_create():
+    d = request.json or {}
+    nome = d.get('nome','').strip()
+    if not nome:
+        return jsonify({'error': 'Nome obrigatório'}), 400
+    conn = get_db()
+    tipo = d.get('tipo','mensal')
+    if tipo not in ('semanal','mensal','vitalicio'): tipo = 'mensal'
+    conn.execute('INSERT INTO planos (nome,descricao,max_pdfs_mes,preco,tipo) VALUES (?,?,?,?,?)',
+                 (nome, d.get('descricao',''), int(d.get('max_pdfs_mes') or 0),
+                  float(d.get('preco') or 0), tipo))
+    new_id = conn.lastrowid
+    conn.commit(); conn.close()
+    log_action('admin_criar_plano', {'nome': nome})
+    return jsonify({'ok': True, 'id': new_id})
+
+@app.route('/admin/api/planos/<int:pid>', methods=['PUT'])
+def admin_planos_edit(pid):
+    d = request.json or {}
+    conn = get_db()
+    tipo = d.get('tipo','mensal')
+    if tipo not in ('semanal','mensal','vitalicio'): tipo = 'mensal'
+    conn.execute('UPDATE planos SET nome=?,descricao=?,max_pdfs_mes=?,preco=?,tipo=?,ativo=? WHERE id=?',
+                 (d.get('nome'), d.get('descricao',''), int(d.get('max_pdfs_mes') or 0),
+                  float(d.get('preco') or 0), tipo, int(d.get('ativo', 1)), pid))
+    conn.commit(); conn.close()
+    log_action('admin_editar_plano', {'id': pid})
+    return jsonify({'ok': True})
+
+@app.route('/admin/api/planos/<int:pid>', methods=['DELETE'])
+def admin_planos_delete(pid):
+    conn = get_db()
+    conn.execute('UPDATE users SET plano_id=NULL WHERE plano_id=?', (pid,))
+    conn.execute('DELETE FROM planos WHERE id=?', (pid,))
+    conn.commit(); conn.close()
+    log_action('admin_excluir_plano', {'id': pid})
     return jsonify({'ok': True})
 
 # ─── ADMIN API — IMÓVEIS ──────────────────────────────────────────────────────
@@ -801,7 +1573,7 @@ def api_clientes_create():
 def admin_backup():
     try:
         conn = get_db()
-        tables = ['users','imoveis','historico','clientes','config','funil','logs']
+        tables = ['users','imoveis','historico','clientes','config','funil','logs','planos']
         backup = {}
         for t in tables:
             try:

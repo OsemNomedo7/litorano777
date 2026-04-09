@@ -167,6 +167,7 @@ select.f-input option{background:#0a0a1a}
   <nav class="sb-nav">
     <a class="sb-item active" onclick="showSection('dashboard')"><span class="sb-icon">⬡</span><span>Dashboard</span></a>
     <a class="sb-item" onclick="showSection('users')"><span class="sb-icon">👤</span><span>Usuários</span></a>
+    <a class="sb-item" onclick="showSection('planos')"><span class="sb-icon">📦</span><span>Planos</span></a>
     <a class="sb-item" onclick="showSection('imoveis')"><span class="sb-icon">🏠</span><span>Imóveis</span></a>
     <a class="sb-item" onclick="showSection('historico')"><span class="sb-icon">📄</span><span>Histórico</span></a>
     <a class="sb-item" onclick="showSection('config')"><span class="sb-icon">⚙️</span><span>Configurações</span></a>
@@ -197,10 +198,22 @@ select.f-input option{background:#0a0a1a}
         <div class="stat-card"><div class="stat-label">Total Imóveis</div><div class="stat-val c-np" id="s-im-tot">—</div></div>
         <div class="stat-card"><div class="stat-label">Usuários Ativos</div><div class="stat-val c-ng" id="s-us-at">—</div></div>
         <div class="stat-card"><div class="stat-label">Total Usuários</div><div class="stat-val c-ny" id="s-us-tot">—</div></div>
+        <div class="stat-card"><div class="stat-label">Assinaturas Ativas</div><div class="stat-val c-ng" id="s-assn-at">—</div></div>
+        <div class="stat-card"><div class="stat-label">Pagamentos Pendentes</div><div class="stat-val c-ny" id="s-assn-pend">—</div></div>
+        <div class="stat-card"><div class="stat-label">Receita do Mês</div><div class="stat-val c-nc" id="s-receita">—</div><div class="stat-sub">pagamentos confirmados</div></div>
         <div class="stat-card"><div class="stat-label">Logs Hoje</div><div class="stat-val c-no" id="s-log-hj">—</div></div>
-        <div class="stat-card"><div class="stat-label">Total Logs</div><div class="stat-val c-nk" id="s-log-tot">—</div></div>
-        <div class="stat-card" style="grid-column:1/-1"><div class="stat-label">Contratos Gerados (7 dias)</div><div class="stat-val c-nc" id="s-contratos">—</div></div>
+        <div class="stat-card"><div class="stat-label">Contratos (7 dias)</div><div class="stat-val c-nk" id="s-contratos">—</div></div>
       </div>
+
+      <!-- PAINEL RÁPIDO DE PLANOS -->
+      <div style="margin-bottom:28px">
+        <div class="sec-hd" style="margin-bottom:14px">
+          <div class="sec-title">📦 Controle de Planos</div>
+          <button class="btn btn-primary btn-sm" onclick="showSection('planos')">Gerenciar Planos →</button>
+        </div>
+        <div id="dash-planos-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px"></div>
+      </div>
+
       <div id="chart-container">
         <div class="sec-title" style="margin-bottom:14px">📊 Contratos — Últimos 7 Dias</div>
         <canvas id="chart-contratos"></canvas>
@@ -219,8 +232,20 @@ select.f-input option{background:#0a0a1a}
         <button class="btn btn-primary" onclick="openModalUser()">+ Novo Usuário</button>
       </div>
       <div class="tbl-wrap">
-        <table><thead><tr><th>ID</th><th>Login</th><th>Role</th><th>Status</th><th>Último Login</th><th>Ações</th></tr></thead>
+        <table><thead><tr><th>ID</th><th>Login</th><th>Role</th><th>Plano</th><th>PDFs/mês</th><th>Status</th><th>Último Login</th><th>Ações</th></tr></thead>
         <tbody id="users-tbody"></tbody></table>
+      </div>
+    </div>
+
+    <!-- PLANOS -->
+    <div id="section-planos" class="section">
+      <div class="sec-hd">
+        <div class="sec-title">📦 Planos</div>
+        <button class="btn btn-primary" onclick="openModalPlano()">+ Novo Plano</button>
+      </div>
+      <div class="tbl-wrap">
+        <table><thead><tr><th>ID</th><th>Nome</th><th>Tipo</th><th>Preço</th><th>PDFs/mês</th><th>Assinantes</th><th>Status</th><th>Ações</th></tr></thead>
+        <tbody id="planos-tbody"></tbody></table>
       </div>
     </div>
 
@@ -245,9 +270,11 @@ select.f-input option{background:#0a0a1a}
     <!-- CONFIGURAÇÕES -->
     <div id="section-config" class="section">
       <div class="sec-hd"><div class="sec-title">⚙️ Configurações</div></div>
-      <div style="display:flex;gap:10px;margin-bottom:20px">
+      <div style="display:flex;gap:10px;margin-bottom:20px;flex-wrap:wrap">
         <button class="btn btn-primary" id="tab-ads" onclick="showTab('ads')">📱 Config Meta Ads</button>
         <button class="btn" id="tab-funil" style="border-color:rgba(255,255,255,.15);color:var(--muted)" onclick="showTab('funil')">💬 Funil WhatsApp</button>
+        <button class="btn" id="tab-webhook" style="border-color:rgba(255,255,255,.15);color:var(--muted)" onclick="showTab('webhook')">🔗 Webhook / Gateway</button>
+        <button class="btn" id="tab-metaapp" style="border-color:rgba(255,255,255,.15);color:var(--muted)" onclick="showTab('metaapp')">🔵 Meta App (OAuth)</button>
       </div>
       <div id="cfg-ads">
         <div style="background:var(--bg2);border:1px solid rgba(255,255,255,.07);border-radius:12px;padding:24px">
@@ -259,6 +286,105 @@ select.f-input option{background:#0a0a1a}
         <div style="background:var(--bg2);border:1px solid rgba(255,255,255,.07);border-radius:12px;padding:24px">
           <div id="funil-form"></div>
           <div style="margin-top:20px"><button class="btn btn-ok" onclick="salvarFunil()">✔ Salvar Funil</button></div>
+        </div>
+      </div>
+      <!-- ABA META APP OAuth -->
+      <div id="cfg-metaapp" style="display:none">
+        <div style="background:var(--bg2);border:1px solid rgba(24,119,242,.2);border-radius:12px;padding:24px">
+          <div class="sec-title" style="margin-bottom:6px;font-size:12px;color:#4d9fff">🔵 Configuração do Facebook App (OAuth)</div>
+          <p style="font-size:11px;color:var(--muted);margin-bottom:20px;line-height:1.6">
+            Crie um app em <strong style="color:var(--text)">developers.facebook.com</strong> → tipo <strong style="color:var(--text)">Business</strong> → produto <strong style="color:var(--text)">Facebook Login</strong>.
+            Cole as credenciais abaixo para que os usuários possam conectar suas contas de anúncios.
+          </p>
+
+          <div style="background:rgba(24,119,242,.04);border:1px solid rgba(24,119,242,.15);border-radius:8px;padding:14px;margin-bottom:20px">
+            <div style="font-family:'Share Tech Mono',monospace;font-size:9px;color:var(--muted);letter-spacing:1.5px;margin-bottom:6px">URL DE CALLBACK — adicione no app do Facebook</div>
+            <div style="font-family:'Share Tech Mono',monospace;font-size:12px;color:#4d9fff;word-break:break-all" id="meta-callback-url-display">—</div>
+            <button class="btn btn-sm btn-primary" style="margin-top:10px;border-color:rgba(24,119,242,.4);background:rgba(24,119,242,.1);color:#4d9fff" onclick="copiarMetaCallbackUrl()">📋 Copiar URL de Callback</button>
+          </div>
+
+          <div class="form-grid">
+            <div class="fg-full">
+              <label class="f-label">Base URL da aplicação (sem barra final)</label>
+              <input class="f-input" id="mac-base-url" placeholder="https://seudominio.com">
+              <div style="font-size:10px;color:var(--muted);margin-top:4px">Ex: http://localhost:5000 em dev ou https://seudominio.com em produção</div>
+            </div>
+            <div class="fg-full">
+              <label class="f-label">App ID do Facebook</label>
+              <input class="f-input" id="mac-app-id" placeholder="1234567890123456">
+            </div>
+            <div class="fg-full">
+              <label class="f-label">App Secret do Facebook</label>
+              <input class="f-input" id="mac-app-secret" placeholder="abc123..." type="password" autocomplete="off">
+            </div>
+          </div>
+
+          <div style="margin-top:20px;display:flex;gap:10px;flex-wrap:wrap">
+            <button class="btn btn-ok" onclick="salvarMetaApp()">✔ Salvar</button>
+            <button class="btn" style="border-color:rgba(255,255,255,.15);color:var(--muted)" onclick="loadMetaApp()">↺ Recarregar</button>
+          </div>
+
+          <div style="margin-top:20px;border-top:1px solid rgba(255,255,255,.06);padding-top:18px">
+            <div class="sec-title" style="font-size:11px;margin-bottom:12px">📘 Passo a passo no Meta Developers</div>
+            <ol style="font-size:11px;color:var(--muted);line-height:2.2;padding-left:18px">
+              <li>Acesse <strong style="color:#4d9fff">developers.facebook.com</strong> → Meus Apps → Criar app</li>
+              <li>Escolha tipo <strong style="color:var(--text)">Business</strong> e clique em Continuar</li>
+              <li>Adicione o produto <strong style="color:var(--text)">Facebook Login</strong></li>
+              <li>Em <strong style="color:var(--text)">Facebook Login → Configurações</strong>, cole a URL de callback acima em "URIs de redirecionamento OAuth válidos"</li>
+              <li>Copie o <strong style="color:var(--text)">App ID</strong> e o <strong style="color:var(--text)">App Secret</strong> (Configurações → Básico)</li>
+              <li>Cole aqui e salve. Os usuários já poderão conectar suas contas!</li>
+            </ol>
+            <div style="margin-top:12px;background:rgba(255,214,10,.04);border:1px solid rgba(255,214,10,.2);border-radius:8px;padding:12px;font-size:11px;color:var(--ny)">
+              ⚠️ Para uso com múltiplos usuários em produção, o app precisará passar pelo <strong>App Review</strong> do Meta solicitando a permissão <strong>ads_management</strong>.
+              Em modo de desenvolvimento, só os usuários adicionados como testadores conseguem conectar.
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div id="cfg-webhook" style="display:none">
+        <div style="background:var(--bg2);border:1px solid rgba(255,255,255,.07);border-radius:12px;padding:24px">
+          <div class="sec-title" style="margin-bottom:18px;font-size:12px">🔗 Configuração do Gateway de Pagamento (SigiloPay)</div>
+
+          <div style="background:rgba(0,245,255,.04);border:1px solid rgba(0,245,255,.15);border-radius:8px;padding:14px;margin-bottom:20px">
+            <div style="font-family:'Share Tech Mono',monospace;font-size:9px;color:var(--muted);letter-spacing:1.5px;margin-bottom:6px">URL DO WEBHOOK — configure no painel da SigiloPay</div>
+            <div style="font-family:'Share Tech Mono',monospace;font-size:12px;color:var(--nc);word-break:break-all" id="wh-url-display">—</div>
+            <button class="btn btn-sm btn-primary" style="margin-top:10px" onclick="copiarWebhookUrl()">📋 Copiar URL</button>
+          </div>
+
+          <div class="form-grid">
+            <div class="fg-full">
+              <label class="f-label">Base URL da aplicação (sem barra final)</label>
+              <input class="f-input" id="wh-base-url" placeholder="https://seudominio.com">
+              <div style="font-size:10px;color:var(--muted);margin-top:4px">Usado para gerar o link do webhook e os callbacks do Meta Ads</div>
+            </div>
+            <div class="fg-full">
+              <label class="f-label">Token da API SigiloPay</label>
+              <input class="f-input" id="wh-token" placeholder="seu_token_aqui" type="password" autocomplete="off">
+            </div>
+            <div class="fg-full">
+              <label class="f-label">URL da API SigiloPay</label>
+              <input class="f-input" id="wh-api-url" placeholder="https://api.sigilopay.com.br/v1">
+            </div>
+            <div class="fg-full">
+              <label class="f-label">Webhook Secret (para validação de assinatura)</label>
+              <input class="f-input" id="wh-secret" placeholder="secret configurado na SigiloPay" type="password" autocomplete="off">
+            </div>
+          </div>
+          <div style="margin-top:20px;display:flex;gap:10px;flex-wrap:wrap">
+            <button class="btn btn-ok" onclick="salvarWebhook()">✔ Salvar Configurações</button>
+            <button class="btn" style="border-color:rgba(255,255,255,.15);color:var(--muted)" onclick="loadWebhook()">↺ Recarregar</button>
+          </div>
+          <div style="margin-top:20px;border-top:1px solid rgba(255,255,255,.06);padding-top:18px">
+            <div class="sec-title" style="font-size:11px;margin-bottom:12px">📘 Como configurar no SigiloPay</div>
+            <ol style="font-size:11px;color:var(--muted);line-height:2;padding-left:18px">
+              <li>Acesse <strong style="color:var(--nc)">app.sigilopay.com.br</strong> → Configurações → Webhooks</li>
+              <li>Copie a URL acima e cole como endpoint do webhook</li>
+              <li>Ative os eventos: <strong style="color:var(--text)">charge.paid / payment.confirmed</strong></li>
+              <li>Copie o secret gerado e cole no campo acima</li>
+              <li>Salve e faça um pagamento teste</li>
+            </ol>
+          </div>
         </div>
       </div>
     </div>
@@ -300,14 +426,57 @@ select.f-input option{background:#0a0a1a}
       <div id="mu-senha-wrap"><label class="f-label">Senha</label><input class="f-input" type="password" id="mu-senha" placeholder="mínimo 6 caracteres"></div>
       <div><label class="f-label">Role</label>
         <select class="f-input" id="mu-role">
-          <option value="user">Funcionário (user)</option>
+          <option value="user">Usuário (user)</option>
           <option value="admin">Administrador (admin)</option>
+        </select>
+      </div>
+      <div><label class="f-label">Plano</label>
+        <select class="f-input" id="mu-plano">
+          <option value="">— Sem plano —</option>
         </select>
       </div>
     </div>
     <div class="modal-footer">
       <button class="btn" onclick="closeModal('modal-user')" style="border-color:rgba(255,255,255,.1);color:var(--muted)">Cancelar</button>
       <button class="btn btn-primary" onclick="saveUser()">Salvar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL PLANO -->
+<div class="modal-overlay" id="modal-plano" style="display:none" onclick="if(event.target===this)closeModal('modal-plano')">
+  <div class="modal" style="max-width:480px">
+    <button class="modal-close" onclick="closeModal('modal-plano')">✕</button>
+    <div class="modal-title" id="mp-title">Novo Plano</div>
+    <input type="hidden" id="mp-id">
+    <div class="form-grid col1" style="gap:12px">
+      <div><label class="f-label">Nome *</label><input class="f-input" id="mp-nome" placeholder="ex: Básico, Pro, Ilimitado"></div>
+      <div><label class="f-label">Descrição</label><input class="f-input" id="mp-desc" placeholder="Breve descrição do plano"></div>
+      <div>
+        <label class="f-label">Tipo / Duração</label>
+        <select class="f-input" id="mp-tipo">
+          <option value="semanal">🗓 Semanal (7 dias)</option>
+          <option value="mensal" selected>📅 Mensal (30 dias)</option>
+          <option value="vitalicio">♾ Vitalício (sem expiração)</option>
+        </select>
+      </div>
+      <div>
+        <label class="f-label">Preço (R$)</label>
+        <input class="f-input" id="mp-preco" type="number" min="0" step="0.01" placeholder="ex: 49.90">
+      </div>
+      <div>
+        <label class="f-label">Limite de PDFs por mês</label>
+        <input class="f-input" id="mp-max" type="number" min="0" placeholder="0 = ilimitado">
+        <div style="font-size:10px;color:var(--muted);margin-top:4px">0 = sem limite</div>
+      </div>
+      <div id="mp-ativo-wrap" style="display:flex;align-items:center;gap:8px">
+        <input type="checkbox" id="mp-ativo" checked>
+        <label class="f-label" style="margin:0;cursor:pointer" for="mp-ativo">Plano ativo</label>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeModal('modal-plano')" style="border-color:rgba(255,255,255,.1);color:var(--muted)">Cancelar</button>
+      <button class="btn btn-primary" onclick="savePlano()">Salvar</button>
     </div>
   </div>
 </div>
@@ -390,6 +559,7 @@ let currentSection = 'dashboard';
 let logsPage = 1;
 let adsData = {};
 let funilData = [];
+let planosData = [];
 
 // ── Init ─────────────────────────────────────────────────────────────────────
 fetch('/api/me').then(r=>r.json()).then(d=>{ document.getElementById('topbar-user').textContent = d.username || ''; });
@@ -400,12 +570,13 @@ function showSection(name) {
   document.querySelectorAll('.section').forEach(s=>s.classList.remove('active'));
   document.querySelectorAll('.sb-item').forEach(i=>i.classList.remove('active'));
   document.getElementById('section-'+name).classList.add('active');
-  document.querySelectorAll('.sb-item')[['dashboard','users','imoveis','historico','config','logs'].indexOf(name)]?.classList.add('active');
-  const titles = {dashboard:'Dashboard',users:'Usuários',imoveis:'Imóveis',historico:'Histórico',config:'Configurações',logs:'Logs'};
+  document.querySelectorAll('.sb-item')[['dashboard','users','planos','imoveis','historico','config','logs'].indexOf(name)]?.classList.add('active');
+  const titles = {dashboard:'Dashboard',users:'Usuários',planos:'Planos',imoveis:'Imóveis',historico:'Histórico',config:'Configurações',logs:'Logs'};
   document.getElementById('page-title').textContent = titles[name] || name;
   currentSection = name;
   if(name==='dashboard') loadDashboard();
   if(name==='users') loadUsers();
+  if(name==='planos') loadPlanos();
   if(name==='imoveis') loadImoveis();
   if(name==='historico') loadHistorico();
   if(name==='config') loadConfig();
@@ -413,14 +584,16 @@ function showSection(name) {
 }
 
 function showTab(tab) {
-  document.getElementById('cfg-ads').style.display = tab==='ads' ? '' : 'none';
-  document.getElementById('cfg-funil').style.display = tab==='funil' ? '' : 'none';
-  document.getElementById('tab-ads').className = 'btn ' + (tab==='ads' ? 'btn-primary' : '');
-  if(tab!=='ads') document.getElementById('tab-ads').style = 'border-color:rgba(255,255,255,.15);color:var(--muted)';
-  else document.getElementById('tab-ads').style = '';
-  document.getElementById('tab-funil').className = 'btn ' + (tab==='funil' ? 'btn-primary' : '');
-  if(tab!=='funil') document.getElementById('tab-funil').style = 'border-color:rgba(255,255,255,.15);color:var(--muted)';
-  else document.getElementById('tab-funil').style = '';
+  ['ads','funil','webhook','metaapp'].forEach(t=>{
+    document.getElementById('cfg-'+t).style.display = tab===t ? '' : 'none';
+    const btn = document.getElementById('tab-'+t);
+    if(btn) {
+      btn.className = 'btn' + (tab===t ? ' btn-primary' : '');
+      btn.style = tab===t ? '' : 'border-color:rgba(255,255,255,.15);color:var(--muted)';
+    }
+  });
+  if(tab==='webhook') loadWebhook();
+  if(tab==='metaapp') loadMetaApp();
 }
 
 // ── API helper ────────────────────────────────────────────────────────────────
@@ -446,12 +619,46 @@ document.addEventListener('keydown', e=>{ if(e.key==='Escape') document.querySel
 let _chartInstance = null;
 async function loadDashboard() {
   const d = await api('/admin/api/stats');
-  document.getElementById('s-im-at').textContent  = d.stats.imoveis_ativos;
-  document.getElementById('s-im-tot').textContent = d.stats.total_imoveis;
-  document.getElementById('s-us-at').textContent  = d.stats.users_ativos;
-  document.getElementById('s-us-tot').textContent = d.stats.total_users;
-  document.getElementById('s-log-hj').textContent = d.stats.logs_hoje;
-  document.getElementById('s-log-tot').textContent= d.stats.logs_total;
+  document.getElementById('s-im-at').textContent    = d.stats.imoveis_ativos;
+  document.getElementById('s-im-tot').textContent   = d.stats.total_imoveis;
+  document.getElementById('s-us-at').textContent    = d.stats.users_ativos;
+  document.getElementById('s-us-tot').textContent   = d.stats.total_users;
+  document.getElementById('s-assn-at').textContent  = d.stats.assn_ativas;
+  document.getElementById('s-assn-pend').textContent= d.stats.assn_pendentes;
+  document.getElementById('s-receita').textContent  = 'R$ '+(parseFloat(d.stats.receita_mes||0)).toLocaleString('pt-BR',{minimumFractionDigits:2});
+  document.getElementById('s-log-hj').textContent   = d.stats.logs_hoje;
+
+  // Painel rápido de planos
+  if(d.planos && d.planos.length) {
+    document.getElementById('dash-planos-grid').innerHTML = d.planos.map(p=>`
+      <div style="background:var(--bg2);border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:16px">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+          <div style="font-family:'Share Tech Mono',monospace;font-size:12px;color:var(--nc)">${p.nome}</div>
+          <span class="badge ${p.ativo?'badge-ok':'badge-off'}" style="font-size:8px">${p.ativo?'ATIVO':'INATIVO'}</span>
+        </div>
+        <div style="font-size:10px;color:var(--muted);margin-bottom:12px">${p.total_assinantes||0} assinante(s) ativo(s)</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+          <div>
+            <div style="font-family:'Share Tech Mono',monospace;font-size:9px;color:var(--muted);letter-spacing:1px;margin-bottom:4px">PREÇO R$</div>
+            <input type="number" step="0.01" min="0" value="${p.preco||0}"
+              style="width:100%;background:rgba(0,0,0,.4);border:1px solid rgba(255,255,255,.1);border-radius:6px;color:var(--ny);font-family:'Share Tech Mono',monospace;font-size:13px;padding:6px 8px;outline:none"
+              onchange="salvarPlanoRapido(${p.id},'preco',this.value)"
+              onfocus="this.style.borderColor='rgba(255,214,10,.5)'" onblur="this.style.borderColor='rgba(255,255,255,.1)'">
+          </div>
+          <div>
+            <div style="font-family:'Share Tech Mono',monospace;font-size:9px;color:var(--muted);letter-spacing:1px;margin-bottom:4px">PDFs/MÊS</div>
+            <input type="number" min="0" value="${p.max_pdfs_mes||0}"
+              style="width:100%;background:rgba(0,0,0,.4);border:1px solid rgba(255,255,255,.1);border-radius:6px;color:var(--nc);font-family:'Share Tech Mono',monospace;font-size:13px;padding:6px 8px;outline:none"
+              onchange="salvarPlanoRapido(${p.id},'max_pdfs_mes',this.value)"
+              onfocus="this.style.borderColor='rgba(0,245,255,.5)'" onblur="this.style.borderColor='rgba(255,255,255,.1)'">
+          </div>
+        </div>
+        <div style="font-size:9px;color:var(--muted);margin-top:8px;font-family:'Share Tech Mono',monospace">
+          0 PDFs = ilimitado &nbsp;|&nbsp; clique no campo e altere
+        </div>
+      </div>`).join('');
+  }
+
   document.getElementById('dash-logs').innerHTML = d.logs.map(l=>`
     <tr>
       <td style="font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--muted)">${l.criado_em||''}</td>
@@ -523,12 +730,19 @@ async function baixarBackup() {
 
 // ── USUÁRIOS ──────────────────────────────────────────────────────────────────
 async function loadUsers() {
+  if(!planosData.length) planosData = await api('/admin/api/planos');
   const rows = await api('/admin/api/users');
-  document.getElementById('users-tbody').innerHTML = rows.map(u=>`
-    <tr>
+  document.getElementById('users-tbody').innerHTML = rows.map(u=>{
+    const maxPdfs = u.max_pdfs_mes || 0;
+    const usoColor = maxPdfs > 0 && u.pdfs_mes >= maxPdfs ? 'var(--nk)' : 'var(--ng)';
+    const usoTexto = maxPdfs > 0 ? `${u.pdfs_mes}/${maxPdfs}` : `${u.pdfs_mes}/∞`;
+    const planoTexto = u.plano_nome || '<span style="color:var(--muted);font-size:10px">—</span>';
+    return `<tr>
       <td style="color:var(--muted);font-size:11px">${u.id}</td>
       <td><strong style="font-family:'Share Tech Mono',monospace;font-size:12px">${u.username}</strong></td>
       <td><span class="badge ${u.role==='admin'?'badge-admin-role':'badge-user-role'}">${u.role}</span></td>
+      <td style="font-size:11px">${planoTexto}</td>
+      <td style="font-family:'Share Tech Mono',monospace;font-size:11px;color:${usoColor}">${usoTexto}</td>
       <td><span class="badge ${u.ativo?'badge-ok':'badge-off'}">${u.ativo?'ATIVO':'INATIVO'}</span></td>
       <td style="font-size:11px;color:var(--muted)">${u.ultimo_login||'—'}</td>
       <td>
@@ -539,32 +753,50 @@ async function loadUsers() {
           <button class="btn btn-danger btn-sm btn-icon" onclick="deleteUser(${u.id},'${u.username}')" title="Excluir">🗑</button>
         </div>
       </td>
-    </tr>`).join('');
+    </tr>`;
+  }).join('');
 }
 
-function openModalUser() {
+function _fillPlanoSelect(selectId, selectedId) {
+  const sel = document.getElementById(selectId);
+  sel.innerHTML = '<option value="">— Sem plano —</option>' +
+    planosData.filter(p=>p.ativo).map(p=>
+      `<option value="${p.id}" ${p.id==selectedId?'selected':''}>${p.nome}${p.max_pdfs_mes?` (${p.max_pdfs_mes} PDFs/mês)`:' (ilimitado)'}</option>`
+    ).join('');
+}
+
+async function openModalUser() {
+  if(!planosData.length) planosData = await api('/admin/api/planos');
   document.getElementById('mu-id').value='';
   document.getElementById('mu-title').textContent='Novo Usuário';
   document.getElementById('mu-username').value='';
   document.getElementById('mu-senha').value='';
   document.getElementById('mu-role').value='user';
   document.getElementById('mu-senha-wrap').style.display='';
+  _fillPlanoSelect('mu-plano', null);
   openModal('modal-user');
 }
 
-function openModalEditUser(json) {
+async function openModalEditUser(json) {
+  if(!planosData.length) planosData = await api('/admin/api/planos');
   const u = JSON.parse(json);
   document.getElementById('mu-id').value=u.id;
   document.getElementById('mu-title').textContent='Editar Usuário';
   document.getElementById('mu-username').value=u.username;
   document.getElementById('mu-role').value=u.role;
   document.getElementById('mu-senha-wrap').style.display='none';
+  _fillPlanoSelect('mu-plano', u.plano_id);
   openModal('modal-user');
 }
 
 async function saveUser() {
   const id = document.getElementById('mu-id').value;
-  const body = {username:document.getElementById('mu-username').value, role:document.getElementById('mu-role').value};
+  const planoVal = document.getElementById('mu-plano').value;
+  const body = {
+    username: document.getElementById('mu-username').value,
+    role: document.getElementById('mu-role').value,
+    plano_id: planoVal ? parseInt(planoVal) : null,
+  };
   if(!id) body.senha = document.getElementById('mu-senha').value;
   const url = id ? `/admin/api/users/${id}` : '/admin/api/users';
   const method = id ? 'PUT' : 'POST';
@@ -601,6 +833,96 @@ async function deleteUser(id, name) {
   const d = await api(`/admin/api/users/${id}`, 'DELETE');
   if(d.error) { toast(d.error, true); return; }
   toast('Usuário excluído!'); loadUsers();
+}
+
+// ── PLANOS ────────────────────────────────────────────────────────────────────
+async function loadPlanos() {
+  planosData = await api('/admin/api/planos');
+  document.getElementById('planos-tbody').innerHTML = planosData.length ? planosData.map(p=>`
+    <tr>
+      <td style="color:var(--muted);font-size:11px">${p.id}</td>
+      <td><strong style="font-family:'Share Tech Mono',monospace;font-size:12px;color:var(--nc)">${p.nome}</strong></td>
+      <td style="font-size:11px;color:var(--muted)">${p.descricao||'—'}</td>
+      <td style="font-size:11px">${{semanal:'🗓 Semanal',mensal:'📅 Mensal',vitalicio:'♾ Vitalício'}[p.tipo]||p.tipo}</td>
+      <td style="font-family:'Share Tech Mono',monospace;font-size:12px;color:var(--ny)">${parseFloat(p.preco||0)>0?'R$ '+parseFloat(p.preco).toLocaleString('pt-BR',{minimumFractionDigits:2}):'<span style="color:var(--muted)">Grátis</span>'}</td>
+      <td style="font-family:'Share Tech Mono',monospace;font-size:12px;color:var(--nc)">${p.max_pdfs_mes>0?p.max_pdfs_mes:'<span style="color:var(--ng)">∞</span>'}</td>
+      <td style="font-family:'Share Tech Mono',monospace;font-size:12px;color:var(--ng)">${p.total_assinantes||0}</td>
+      <td><span class="badge ${p.ativo?'badge-ok':'badge-off'}">${p.ativo?'ATIVO':'INATIVO'}</span></td>
+      <td>
+        <div class="action-btns">
+          <button class="btn btn-warn btn-sm btn-icon" onclick="openModalEditPlano(${JSON.stringify(JSON.stringify(p))})" title="Editar">✏️</button>
+          <button class="btn btn-danger btn-sm btn-icon" onclick="deletePlano(${p.id},'${p.nome.replace(/'/g,"\\'")}')">🗑</button>
+        </div>
+      </td>
+    </tr>`).join('')
+    : '<tr><td colspan="6" style="color:var(--muted);font-size:11px;text-align:center;padding:20px">Nenhum plano cadastrado.</td></tr>';
+}
+
+function openModalPlano() {
+  document.getElementById('mp-id').value='';
+  document.getElementById('mp-title').textContent='Novo Plano';
+  document.getElementById('mp-nome').value='';
+  document.getElementById('mp-desc').value='';
+  document.getElementById('mp-tipo').value='mensal';
+  document.getElementById('mp-preco').value='0';
+  document.getElementById('mp-max').value='0';
+  document.getElementById('mp-ativo').checked=true;
+  openModal('modal-plano');
+}
+
+function openModalEditPlano(json) {
+  const p = JSON.parse(json);
+  document.getElementById('mp-id').value=p.id;
+  document.getElementById('mp-title').textContent='Editar Plano';
+  document.getElementById('mp-nome').value=p.nome||'';
+  document.getElementById('mp-desc').value=p.descricao||'';
+  document.getElementById('mp-tipo').value=p.tipo||'mensal';
+  document.getElementById('mp-preco').value=p.preco||0;
+  document.getElementById('mp-max').value=p.max_pdfs_mes||0;
+  document.getElementById('mp-ativo').checked=!!p.ativo;
+  openModal('modal-plano');
+}
+
+async function savePlano() {
+  const id = document.getElementById('mp-id').value;
+  const body = {
+    nome: document.getElementById('mp-nome').value.trim(),
+    descricao: document.getElementById('mp-desc').value.trim(),
+    tipo: document.getElementById('mp-tipo').value,
+    preco: parseFloat(document.getElementById('mp-preco').value)||0,
+    max_pdfs_mes: parseInt(document.getElementById('mp-max').value)||0,
+    ativo: document.getElementById('mp-ativo').checked ? 1 : 0,
+  };
+  if(!body.nome) { toast('Nome obrigatório', true); return; }
+  const url = id ? `/admin/api/planos/${id}` : '/admin/api/planos';
+  const method = id ? 'PUT' : 'POST';
+  const d = await api(url, method, body);
+  if(d.error) { toast(d.error, true); return; }
+  toast('Plano salvo!'); closeModal('modal-plano'); loadPlanos();
+}
+
+async function salvarPlanoRapido(id, campo, valor) {
+  // Busca dados atuais do plano para não sobrescrever outros campos
+  const planos = await api('/admin/api/planos');
+  const p = planos.find(x=>x.id===id);
+  if(!p) return;
+  const body = {
+    nome: p.nome, descricao: p.descricao||'',
+    preco: campo==='preco' ? parseFloat(valor)||0 : parseFloat(p.preco)||0,
+    max_pdfs_mes: campo==='max_pdfs_mes' ? parseInt(valor)||0 : parseInt(p.max_pdfs_mes)||0,
+    ativo: p.ativo,
+  };
+  const d = await api(`/admin/api/planos/${id}`, 'PUT', body);
+  if(d.error) { toast(d.error, true); return; }
+  toast('✔ Plano atualizado!');
+  planosData = [];  // invalida cache para recarregar no próximo loadUsers
+}
+
+async function deletePlano(id, nome) {
+  if(!confirm(`Excluir plano "${nome}"?\nUsuários com este plano ficarão sem plano atribuído.`)) return;
+  const d = await api(`/admin/api/planos/${id}`, 'DELETE');
+  if(d.error) { toast(d.error, true); return; }
+  toast('Plano excluído!'); loadPlanos();
 }
 
 // ── IMÓVEIS ───────────────────────────────────────────────────────────────────
@@ -860,6 +1182,61 @@ async function salvarFunil() {
   const d = await api('/admin/api/funil', 'PUT', items);
   if(d.error) { toast(d.error, true); return; }
   toast('✔ Funil salvo!');
+}
+
+// ── WEBHOOK CONFIG ────────────────────────────────────────────────────────────
+async function loadMetaApp() {
+  const d = await api('/admin/api/meta-app-config');
+  document.getElementById('mac-base-url').value   = d.app_base_url || '';
+  document.getElementById('mac-app-id').value     = d.meta_app_id || '';
+  document.getElementById('mac-app-secret').value = d.meta_app_secret || '';
+  document.getElementById('meta-callback-url-display').textContent = d.callback_url || '—';
+}
+
+async function salvarMetaApp() {
+  const baseUrl = document.getElementById('mac-base-url').value.trim().replace(/\/$/, '');
+  const body = {
+    app_base_url:    baseUrl,
+    meta_app_id:     document.getElementById('mac-app-id').value.trim(),
+    meta_app_secret: document.getElementById('mac-app-secret').value.trim(),
+  };
+  const d = await api('/admin/api/meta-app-config', 'PUT', body);
+  if(d.error) { toast(d.error, true); return; }
+  toast('✔ Configurações do Meta App salvas!');
+  if(baseUrl) document.getElementById('meta-callback-url-display').textContent = baseUrl + '/auth/meta/callback';
+}
+
+function copiarMetaCallbackUrl() {
+  const url = document.getElementById('meta-callback-url-display').textContent;
+  navigator.clipboard.writeText(url).then(()=>toast('URL de callback copiada!'));
+}
+
+async function loadWebhook() {
+  const d = await api('/admin/api/webhook-config');
+  document.getElementById('wh-url-display').textContent = d.webhook_url || '—';
+  document.getElementById('wh-base-url').value  = d.app_base_url || '';
+  document.getElementById('wh-token').value      = d.sigilopay_token || '';
+  document.getElementById('wh-api-url').value    = d.sigilopay_api_url || '';
+  document.getElementById('wh-secret').value     = d.webhook_secret || '';
+}
+
+async function salvarWebhook() {
+  const body = {
+    app_base_url:    document.getElementById('wh-base-url').value.trim().replace(/\/$/, ''),
+    sigilopay_token: document.getElementById('wh-token').value.trim(),
+    sigilopay_api_url: document.getElementById('wh-api-url').value.trim(),
+    webhook_secret:  document.getElementById('wh-secret').value.trim(),
+  };
+  const d = await api('/admin/api/webhook-config', 'PUT', body);
+  if(d.error) { toast(d.error, true); return; }
+  toast('✔ Configurações salvas!');
+  // Atualiza URL exibida
+  if(body.app_base_url) document.getElementById('wh-url-display').textContent = body.app_base_url+'/webhook/sigilopay';
+}
+
+function copiarWebhookUrl() {
+  const url = document.getElementById('wh-url-display').textContent;
+  navigator.clipboard.writeText(url).then(()=>toast('URL copiada!'));
 }
 
 // ── HISTÓRICO ─────────────────────────────────────────────────────────────────
