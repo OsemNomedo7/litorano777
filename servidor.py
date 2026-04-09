@@ -425,38 +425,65 @@ def api_assinar():
 
 @app.route('/webhook/sigilopay', methods=['POST'])
 def webhook_sigilopay():
-    """Recebe confirmação de pagamento da SigiloPay e ativa a assinatura."""
+    """Recebe notificações da SigiloPay (formato documentado: event + transaction)."""
     data = request.json or {}
-    # Adapte os campos abaixo conforme o payload real da SigiloPay
-    # Campos comuns em gateways BR: id/charge_id, status, external_reference
-    ext_id     = data.get('id') or data.get('charge_id') or data.get('transaction_id')
-    ref_id     = data.get('external_reference') or data.get('ref_id')
-    status_raw = (data.get('status') or '').lower()
-    pago       = status_raw in ('paid', 'confirmed', 'approved', 'pago', 'aprovado', 'completed')
+    print(f"[WEBHOOK] payload recebido: {json.dumps(data)[:500]}")
+
+    event       = data.get('event', '')
+    transaction = data.get('transaction') or {}
+
+    # Valida token do webhook se configurado
+    wh_secret = ''
+    try:
+        conn_cfg = get_db()
+        row = conn_cfg.execute("SELECT valor FROM config WHERE chave='webhook_secret'").fetchone()
+        conn_cfg.close()
+        if row: wh_secret = row['valor'] or ''
+    except Exception:
+        pass
+    if wh_secret and data.get('token') != wh_secret:
+        print(f"[WEBHOOK] token inválido recebido: {data.get('token')}")
+        return jsonify({'ok': False, 'error': 'invalid token'}), 401
+
+    # Só processa evento de pagamento confirmado
+    pago = (event == 'TRANSACTION_PAID' or
+            (transaction.get('status') or '').upper() == 'COMPLETED')
     if not pago:
-        return jsonify({'ok': True, 'ignored': True})
+        return jsonify({'ok': True, 'ignored': True, 'event': event})
+
+    # transaction.id  = ID interno da SigiloPay
+    # transaction.identifier = nosso ID passado na criação (external_reference)
+    ext_id = transaction.get('id')
+    ref_id = transaction.get('identifier')
+
     conn = get_db()
     assn = None
     if ext_id:
         assn = conn.execute('SELECT * FROM assinaturas WHERE external_id=?', (ext_id,)).fetchone()
     if not assn and ref_id:
         assn = conn.execute('SELECT * FROM assinaturas WHERE id=?', (ref_id,)).fetchone()
+
     if assn and assn['status'] != 'ativa':
         plano_tipo = conn.execute('SELECT tipo FROM planos WHERE id=?', (assn['plano_id'],)).fetchone()
         tipo = plano_tipo['tipo'] if plano_tipo else 'mensal'
         now = datetime.datetime.now()
-        if tipo == 'semanal':    expira = (now + datetime.timedelta(days=7)).strftime('%Y-%m-%d %H:%M:%S')
+        if tipo == 'semanal':     expira = (now + datetime.timedelta(days=7)).strftime('%Y-%m-%d %H:%M:%S')
         elif tipo == 'vitalicio': expira = None
-        else:                    expira = (now + datetime.timedelta(days=30)).strftime('%Y-%m-%d %H:%M:%S')
+        else:                     expira = (now + datetime.timedelta(days=30)).strftime('%Y-%m-%d %H:%M:%S')
         conn.execute('''UPDATE assinaturas SET status='ativa', external_id=?,
             pago_em=datetime('now','localtime'), expira_em=? WHERE id=?''',
             (ext_id or assn['external_id'], expira, assn['id']))
         conn.execute('UPDATE users SET plano_id=? WHERE id=?', (assn['plano_id'], assn['user_id']))
         conn.execute('INSERT INTO logs (user_id,user_nome,acao,detalhes,ip) VALUES (?,?,?,?,?)',
                      (assn['user_id'], 'webhook', 'pagamento_confirmado',
-                      json.dumps({'assn_id': assn['id'], 'plano_id': assn['plano_id'], 'gateway': 'sigilopay'}),
+                      json.dumps({'assn_id': assn['id'], 'plano_id': assn['plano_id'],
+                                  'gateway': 'sigilopay', 'ext_id': ext_id}),
                       request.remote_addr))
         conn.commit()
+        print(f"[WEBHOOK] assinatura {assn['id']} ativada para user {assn['user_id']}")
+    else:
+        print(f"[WEBHOOK] assinatura não encontrada ou já ativa. ext_id={ext_id} ref_id={ref_id}")
+
     conn.close()
     return jsonify({'ok': True})
 
