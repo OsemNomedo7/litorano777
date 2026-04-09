@@ -86,7 +86,7 @@ def _sigilopay_bearer_token():
     _sigilo_token_cache = {'token': token, 'expires': time.time() + expires_in - 60}
     return token
 
-def sigilopay_criar_cobranca(valor_reais, descricao, nome, email, ref_id):
+def sigilopay_criar_cobranca(valor_reais, descricao, nome, email, ref_id, phone=None, document=None):
     """Cria cobrança PIX via SigiloPay usando OAuth2 client_credentials."""
     import datetime as _dt
     cid, csecret, api_url = _get_sigilopay_creds()
@@ -107,6 +107,8 @@ def sigilopay_criar_cobranca(valor_reais, descricao, nome, email, ref_id):
         'client': {
             'name': nome or 'Cliente',
             'email': email or '',
+            'phone': phone or '(11) 99999-9999',
+            'document': document or '000.000.000-00',
         },
         'products': [
             {'id': 'plano_litorano', 'name': descricao, 'quantity': 1, 'price': round(float(valor_reais), 2)}
@@ -115,7 +117,7 @@ def sigilopay_criar_cobranca(valor_reais, descricao, nome, email, ref_id):
         'callbackUrl': f'{base_url}/webhook/sigilopay',
     }).encode()
     req = _ureq.Request(
-        f'{api_url}/pix',
+        f'{api_url}/gateway/pix/receive',
         data=payload,
         headers={'Authorization': f'Bearer {token}', 'Content-Type': 'application/json'},
     )
@@ -386,7 +388,7 @@ def api_assinar():
     if not plano:
         conn.close()
         return jsonify({'error': 'Plano inválido'}), 400
-    user = conn.execute('SELECT username, email FROM users WHERE id=?', (uid,)).fetchone()
+    user = conn.execute('SELECT username, email, phone, cpf FROM users WHERE id=?', (uid,)).fetchone()
     # Cria registro pendente
     cur_assn = conn.execute('INSERT INTO assinaturas (user_id,plano_id,status,valor) VALUES (?,?,?,?)',
                             (uid, plano_id, 'pendente', plano['preco']))
@@ -399,7 +401,8 @@ def api_assinar():
         return (now + datetime.timedelta(days=30)).strftime('%Y-%m-%d %H:%M:%S')
 
     # Modo teste: aprova imediatamente
-    if MODO_TESTE or not SIGILOPAY_TOKEN:
+    cid, csecret, _ = _get_sigilopay_creds()
+    if MODO_TESTE or not cid or not csecret:
         expira = _expira_em(plano['tipo'])
         conn.execute('''UPDATE assinaturas SET status='ativa', external_id=?,
             pago_em=datetime('now','localtime'), expira_em=? WHERE id=?''',
@@ -415,6 +418,8 @@ def api_assinar():
             nome=user['username'],
             email=user['email'] or '',
             ref_id=assn_id,
+            phone=user['phone'] if user['phone'] else None,
+            document=user['cpf'] if user['cpf'] else None,
         )
         conn.execute('UPDATE assinaturas SET external_id=? WHERE id=?', (cobranca['id'], assn_id))
         conn.commit(); conn.close()

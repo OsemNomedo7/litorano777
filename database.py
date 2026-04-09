@@ -294,6 +294,8 @@ def init_db():
         "ALTER TABLE users ADD COLUMN meta_access_token TEXT",
         "ALTER TABLE users ADD COLUMN meta_ad_account_id TEXT DEFAULT ''",
         "ALTER TABLE users ADD COLUMN meta_token_expires TEXT",
+        "ALTER TABLE users ADD COLUMN phone TEXT DEFAULT ''",
+        "ALTER TABLE users ADD COLUMN cpf TEXT DEFAULT ''",
     ]:
         try:
             c.execute(migration)
