@@ -117,7 +117,7 @@ def sigilopay_criar_cobranca(valor_reais, descricao, nome, email, ref_id, phone=
 
 PUBLIC = {
     'login', 'logo', 'static', 'api_debug_fotos', 'api_foto_fs', 'imovel_link',
-    'planos_page', 'api_cadastro', 'webhook_sigilopay',
+    'planos_page', 'api_cadastro', 'webhook_sigilopay', 'api_planos_publicos',
 }
 # Rotas que exigem login mas NÃO exigem assinatura ativa
 SEM_ASSINATURA_OK = {'logout', 'api_assinar', 'api_minha_assinatura'}
@@ -352,7 +352,7 @@ def planos_page():
 def api_planos_publicos():
     """Lista planos ativos com preço — acessível sem assinatura."""
     conn = get_db()
-    rows = conn.execute('SELECT id,nome,descricao,max_pdfs_mes,preco,tipo FROM planos WHERE ativo=1 AND id>1 ORDER BY preco').fetchall()
+    rows = conn.execute('SELECT id,nome,descricao,max_pdfs_mes,preco,tipo FROM planos WHERE ativo=1 ORDER BY preco').fetchall()
     conn.close()
     return jsonify([dict(r) for r in rows])
 
