@@ -98,6 +98,10 @@ body{font-family:'Segoe UI',sans-serif;background:var(--bg);color:var(--text);mi
   <div class="modal">
     <div class="modal-title">💳 Pagamento via PIX</div>
     <div class="modal-sub" id="pix-plano-desc">Copie o código abaixo e pague no app do seu banco.</div>
+    <div id="pix-qr-wrap" style="display:none;text-align:center;margin-bottom:16px">
+      <img id="pix-qr-img" src="" alt="QR Code PIX" style="width:180px;height:180px;border-radius:8px;border:1px solid rgba(0,245,255,.2)">
+      <div style="font-family:'Share Tech Mono',monospace;font-size:9px;color:var(--muted);margin-top:6px;letter-spacing:1px">ESCANEIE COM O APP DO SEU BANCO</div>
+    </div>
     <div class="pix-box" id="pix-code" onclick="copiarPix()"></div>
     <button class="btn-copiar" onclick="copiarPix()">📋 Copiar código PIX</button>
     <div class="pix-hint">Após o pagamento, aguarde a confirmação automática.</div>
@@ -160,10 +164,22 @@ async function assinar(planoId, nome, preco) {
   if(d.error) { alert('Erro: '+d.error); return; }
   if(d.redirect) { window.location = d.redirect; return; }
   // Mostra PIX
-  document.getElementById('pix-plano-desc').textContent = `Plano ${nome} — R$ ${preco.toFixed(2).replace('.',',')} /mês`;
+  document.getElementById('pix-plano-desc').textContent = `Plano ${nome} — R$ ${preco.toFixed(2).replace('.',',')}`;
   document.getElementById('pix-code').textContent = d.pix_code || '(código PIX não disponível)';
   document.getElementById('pix-status').textContent = 'Aguardando pagamento...';
   document.getElementById('pix-dot').className = 'dot';
+  // QR Code
+  const qrWrap = document.getElementById('pix-qr-wrap');
+  const qrImg  = document.getElementById('pix-qr-img');
+  if(d.qr_code_base64) {
+    qrImg.src = d.qr_code_base64;
+    qrWrap.style.display = 'block';
+  } else if(d.qr_code_url) {
+    qrImg.src = d.qr_code_url;
+    qrWrap.style.display = 'block';
+  } else {
+    qrWrap.style.display = 'none';
+  }
   document.getElementById('modal-pix').style.display = 'flex';
   iniciarPolling();
 }

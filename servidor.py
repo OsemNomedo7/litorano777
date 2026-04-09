@@ -88,37 +88,46 @@ def _sigilopay_bearer_token():
 
 def sigilopay_criar_cobranca(valor_reais, descricao, nome, email, ref_id):
     """Cria cobrança PIX via SigiloPay usando OAuth2 client_credentials."""
+    import datetime as _dt
     cid, csecret, api_url = _get_sigilopay_creds()
     if MODO_TESTE or not cid or not csecret:
         return {
             'id': f'teste_{ref_id}',
             'pix_code': '00020126580014BR.GOV.BCB.PIX0136TESTE-SIGILOPAY-PIX-CODE-AQUI5204000053039865802BR5913LITORANO SAS6009SAO PAULO62070503***6304ABCD',
+            'qr_code_base64': None,
             'qr_code_url': None,
-            'payment_url': None,
             '_teste': True,
         }
     base_url = _get_app_base_url()
     token = _sigilopay_bearer_token()
+    due_date = (_dt.date.today() + _dt.timedelta(days=1)).strftime('%Y-%m-%d')
     payload = json.dumps({
-        'amount': int(round(valor_reais * 100)),   # centavos
-        'description': descricao,
-        'payment_method': 'pix',
-        'customer': {'name': nome, 'email': email or ''},
-        'external_reference': str(ref_id),
-        'callback_url': f'{base_url}/webhook/sigilopay',
+        'identifier': str(ref_id),
+        'amount': round(float(valor_reais), 2),   # reais (não centavos)
+        'client': {
+            'name': nome or 'Cliente',
+            'email': email or '',
+        },
+        'products': [
+            {'id': 'plano_litorano', 'name': descricao, 'quantity': 1, 'price': round(float(valor_reais), 2)}
+        ],
+        'dueDate': due_date,
+        'callbackUrl': f'{base_url}/webhook/sigilopay',
     }).encode()
     req = _ureq.Request(
-        f'{api_url}/charges',
+        f'{api_url}/pix',
         data=payload,
         headers={'Authorization': f'Bearer {token}', 'Content-Type': 'application/json'},
     )
     with _ureq.urlopen(req, timeout=30) as r:
         resp = json.loads(r.read())
+    print(f"[SIGILOPAY] resposta criação PIX: {json.dumps(resp)[:400]}")
+    pix = resp.get('pix') or {}
     return {
-        'id': resp.get('id') or resp.get('charge_id') or resp.get('transaction_id'),
-        'pix_code': (resp.get('pix') or {}).get('code') or resp.get('pix_code') or resp.get('qr_code'),
-        'qr_code_url': (resp.get('pix') or {}).get('qr_code_url') or resp.get('qr_code_url'),
-        'payment_url': resp.get('payment_url') or resp.get('url'),
+        'id': resp.get('transactionId') or resp.get('id'),
+        'pix_code': pix.get('code'),
+        'qr_code_base64': pix.get('base64'),
+        'qr_code_url': pix.get('image'),
         '_raw': resp,
     }
 
@@ -413,8 +422,8 @@ def api_assinar():
             'ok': True,
             'assn_id': assn_id,
             'pix_code': cobranca.get('pix_code'),
+            'qr_code_base64': cobranca.get('qr_code_base64'),
             'qr_code_url': cobranca.get('qr_code_url'),
-            'payment_url': cobranca.get('payment_url'),
         })
     except Exception as e:
         conn.execute('DELETE FROM assinaturas WHERE id=?', (assn_id,))
