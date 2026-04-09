@@ -718,6 +718,35 @@ def api_meta_insights():
     except Exception as e:
         return jsonify({'error': str(e)}), 400
 
+# ─── ADMIN API — MINHA CONTA ─────────────────────────────────────────────────
+
+@app.route('/admin/api/minha-conta', methods=['PUT'])
+def admin_minha_conta():
+    d = request.json or {}
+    uid = session.get('user_id')
+    updates = []
+    params  = []
+    if d.get('username', '').strip():
+        updates.append('username=?'); params.append(d['username'].strip())
+    if d.get('email', '').strip():
+        updates.append('email=?'); params.append(d['email'].strip())
+    if d.get('senha', '').strip():
+        if len(d['senha']) < 6:
+            return jsonify({'error': 'Senha mínimo 6 caracteres'}), 400
+        updates.append('pwd_hash=?'); params.append(h(d['senha']))
+    if not updates:
+        return jsonify({'error': 'Nada para atualizar'}), 400
+    params.append(uid)
+    conn = get_db()
+    conn.execute(f"UPDATE users SET {','.join(updates)} WHERE id=?", params)
+    conn.commit(); conn.close()
+    log_action('admin_update_minha_conta')
+    # Se mudou username ou senha, força novo login
+    logout_needed = bool(d.get('username') or d.get('senha'))
+    if logout_needed:
+        session.clear()
+    return jsonify({'ok': True, 'logout': logout_needed})
+
 # ─── ADMIN API — META APP CONFIG ─────────────────────────────────────────────
 
 @app.route('/admin/api/meta-app-config', methods=['GET'])
@@ -774,6 +803,8 @@ def logo():
 
 @app.route('/')
 def index():
+    if not session.get('user_id'):
+        return redirect('/login')
     html = open(HTML_APP, encoding='utf-8').read()
     role = session.get('role', 'user')
     html = html.replace('{{USER_ROLE}}', role).replace('{{USERNAME}}', session.get('username', ''))
@@ -1129,7 +1160,7 @@ def admin_stats():
 def admin_users_list():
     conn = get_db()
     rows = conn.execute('''
-        SELECT u.id, u.username, u.role, u.ativo, u.criado_em, u.ultimo_login,
+        SELECT u.id, u.username, u.email, u.role, u.ativo, u.criado_em, u.ultimo_login,
                u.plano_id, p.nome as plano_nome, p.max_pdfs_mes
         FROM users u
         LEFT JOIN planos p ON p.id = u.plano_id
@@ -1173,8 +1204,17 @@ def admin_users_edit(uid):
     d = request.json or {}
     plano_id = d.get('plano_id') or None
     conn = get_db()
-    conn.execute('UPDATE users SET username=?, role=?, plano_id=? WHERE id=?',
-                 (d.get('username'), d.get('role'), plano_id, uid))
+    # Campos básicos
+    conn.execute('UPDATE users SET username=?, role=?, plano_id=?, email=?, ativo=? WHERE id=?',
+                 (d.get('username'), d.get('role'), plano_id,
+                  d.get('email', ''), int(d.get('ativo', 1)), uid))
+    # Senha: só atualiza se foi enviada
+    senha = (d.get('senha') or '').strip()
+    if senha:
+        if len(senha) < 6:
+            conn.close()
+            return jsonify({'error': 'Senha mínimo 6 caracteres'}), 400
+        conn.execute('UPDATE users SET pwd_hash=? WHERE id=?', (h(senha), uid))
     conn.commit(); conn.close()
     log_action('admin_editar_user', {'user_id': uid})
     return jsonify({'ok': True})

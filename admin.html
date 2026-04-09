@@ -275,6 +275,7 @@ select.f-input option{background:#0a0a1a}
         <button class="btn" id="tab-funil" style="border-color:rgba(255,255,255,.15);color:var(--muted)" onclick="showTab('funil')">💬 Funil WhatsApp</button>
         <button class="btn" id="tab-webhook" style="border-color:rgba(255,255,255,.15);color:var(--muted)" onclick="showTab('webhook')">🔗 Webhook / Gateway</button>
         <button class="btn" id="tab-metaapp" style="border-color:rgba(255,255,255,.15);color:var(--muted)" onclick="showTab('metaapp')">🔵 Meta App (OAuth)</button>
+        <button class="btn" id="tab-admin-creds" style="border-color:rgba(255,255,255,.15);color:var(--muted)" onclick="showTab('admin-creds')">🔑 Minha Conta Admin</button>
       </div>
       <div id="cfg-ads">
         <div style="background:var(--bg2);border:1px solid rgba(255,255,255,.07);border-radius:12px;padding:24px">
@@ -288,6 +289,34 @@ select.f-input option{background:#0a0a1a}
           <div style="margin-top:20px"><button class="btn btn-ok" onclick="salvarFunil()">✔ Salvar Funil</button></div>
         </div>
       </div>
+      <!-- ABA CREDENCIAIS ADMIN -->
+      <div id="cfg-admin-creds" style="display:none">
+        <div style="background:var(--bg2);border:1px solid rgba(255,255,255,.07);border-radius:12px;padding:24px;max-width:480px">
+          <div class="sec-title" style="margin-bottom:18px;font-size:12px">🔑 Alterar credenciais da conta admin</div>
+          <div class="form-grid col1" style="gap:14px">
+            <div>
+              <label class="f-label">Novo login (usuário)</label>
+              <input class="f-input" id="adm-username" placeholder="deixe vazio para não alterar">
+            </div>
+            <div>
+              <label class="f-label">Novo email</label>
+              <input class="f-input" id="adm-email" type="email" placeholder="deixe vazio para não alterar">
+            </div>
+            <div>
+              <label class="f-label">Nova senha</label>
+              <input class="f-input" id="adm-senha" type="password" placeholder="mínimo 6 caracteres" autocomplete="new-password">
+            </div>
+            <div>
+              <label class="f-label">Confirmar nova senha</label>
+              <input class="f-input" id="adm-senha2" type="password" placeholder="repita a nova senha" autocomplete="new-password">
+            </div>
+          </div>
+          <div style="margin-top:20px">
+            <button class="btn btn-ok" onclick="salvarAdminCreds()">✔ Salvar alterações</button>
+          </div>
+        </div>
+      </div>
+
       <!-- ABA META APP OAuth -->
       <div id="cfg-metaapp" style="display:none">
         <div style="background:var(--bg2);border:1px solid rgba(24,119,242,.2);border-radius:12px;padding:24px">
@@ -422,8 +451,9 @@ select.f-input option{background:#0a0a1a}
     <div class="modal-title" id="mu-title">Novo Usuário</div>
     <input type="hidden" id="mu-id">
     <div class="form-grid col1" style="gap:12px">
-      <div><label class="f-label">Login</label><input class="f-input" id="mu-username" placeholder="nome de usuário"></div>
-      <div id="mu-senha-wrap"><label class="f-label">Senha</label><input class="f-input" type="password" id="mu-senha" placeholder="mínimo 6 caracteres"></div>
+      <div><label class="f-label">Login (usuário)</label><input class="f-input" id="mu-username" placeholder="nome de usuário"></div>
+      <div><label class="f-label">Email</label><input class="f-input" id="mu-email" type="email" placeholder="email@exemplo.com"></div>
+      <div><label class="f-label" id="mu-senha-label">Senha *</label><input class="f-input" type="password" id="mu-senha" placeholder="mínimo 6 caracteres" autocomplete="new-password"></div>
       <div><label class="f-label">Role</label>
         <select class="f-input" id="mu-role">
           <option value="user">Usuário (user)</option>
@@ -434,6 +464,10 @@ select.f-input option{background:#0a0a1a}
         <select class="f-input" id="mu-plano">
           <option value="">— Sem plano —</option>
         </select>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <input type="checkbox" id="mu-ativo" checked>
+        <label class="f-label" style="margin:0;cursor:pointer" for="mu-ativo">Conta ativa (desmarcar = bloquear acesso)</label>
       </div>
     </div>
     <div class="modal-footer">
@@ -584,7 +618,7 @@ function showSection(name) {
 }
 
 function showTab(tab) {
-  ['ads','funil','webhook','metaapp'].forEach(t=>{
+  ['ads','funil','webhook','metaapp','admin-creds'].forEach(t=>{
     document.getElementById('cfg-'+t).style.display = tab===t ? '' : 'none';
     const btn = document.getElementById('tab-'+t);
     if(btn) {
@@ -729,9 +763,12 @@ async function baixarBackup() {
 }
 
 // ── USUÁRIOS ──────────────────────────────────────────────────────────────────
+let usersMap = {};
 async function loadUsers() {
   if(!planosData.length) planosData = await api('/admin/api/planos');
   const rows = await api('/admin/api/users');
+  usersMap = {};
+  rows.forEach(u => usersMap[u.id] = u);
   document.getElementById('users-tbody').innerHTML = rows.map(u=>{
     const maxPdfs = u.max_pdfs_mes || 0;
     const usoColor = maxPdfs > 0 && u.pdfs_mes >= maxPdfs ? 'var(--nk)' : 'var(--ng)';
@@ -747,10 +784,8 @@ async function loadUsers() {
       <td style="font-size:11px;color:var(--muted)">${u.ultimo_login||'—'}</td>
       <td>
         <div class="action-btns">
-          <button class="btn btn-warn btn-sm btn-icon" onclick="openModalEditUser(${JSON.stringify(JSON.stringify(u))})" title="Editar">✏️</button>
-          <button class="btn btn-sm btn-icon" onclick="openModalSenha(${u.id})" title="Trocar senha" style="border-color:rgba(0,245,255,.3);color:var(--nc)">🔑</button>
-          <button class="btn ${u.ativo?'btn-danger':'btn-ok'} btn-sm" onclick="toggleUser(${u.id})">${u.ativo?'Desativar':'Ativar'}</button>
-          <button class="btn btn-danger btn-sm btn-icon" onclick="deleteUser(${u.id},'${u.username}')" title="Excluir">🗑</button>
+          <button class="btn btn-warn btn-sm btn-icon" onclick="openModalEditUser(${u.id})" title="Editar">✏️</button>
+          <button class="btn btn-danger btn-sm btn-icon" onclick="deleteUser(${u.id})" title="Excluir">🗑</button>
         </div>
       </td>
     </tr>`;
@@ -770,21 +805,27 @@ async function openModalUser() {
   document.getElementById('mu-id').value='';
   document.getElementById('mu-title').textContent='Novo Usuário';
   document.getElementById('mu-username').value='';
+  document.getElementById('mu-email').value='';
   document.getElementById('mu-senha').value='';
+  document.getElementById('mu-senha-label').textContent='Senha *';
   document.getElementById('mu-role').value='user';
-  document.getElementById('mu-senha-wrap').style.display='';
+  document.getElementById('mu-ativo').checked=true;
   _fillPlanoSelect('mu-plano', null);
   openModal('modal-user');
 }
 
-async function openModalEditUser(json) {
+async function openModalEditUser(id) {
   if(!planosData.length) planosData = await api('/admin/api/planos');
-  const u = JSON.parse(json);
+  const u = usersMap[id];
+  if(!u) { toast('Usuário não encontrado', true); return; }
   document.getElementById('mu-id').value=u.id;
   document.getElementById('mu-title').textContent='Editar Usuário';
   document.getElementById('mu-username').value=u.username;
+  document.getElementById('mu-email').value=u.email||'';
+  document.getElementById('mu-senha').value='';
+  document.getElementById('mu-senha-label').textContent='Nova Senha (deixe vazio para não alterar)';
   document.getElementById('mu-role').value=u.role;
-  document.getElementById('mu-senha-wrap').style.display='none';
+  document.getElementById('mu-ativo').checked=!!u.ativo;
   _fillPlanoSelect('mu-plano', u.plano_id);
   openModal('modal-user');
 }
@@ -792,12 +833,17 @@ async function openModalEditUser(json) {
 async function saveUser() {
   const id = document.getElementById('mu-id').value;
   const planoVal = document.getElementById('mu-plano').value;
+  const senha = document.getElementById('mu-senha').value;
   const body = {
-    username: document.getElementById('mu-username').value,
-    role: document.getElementById('mu-role').value,
+    username: document.getElementById('mu-username').value.trim(),
+    email:    document.getElementById('mu-email').value.trim(),
+    role:     document.getElementById('mu-role').value,
+    ativo:    document.getElementById('mu-ativo').checked ? 1 : 0,
     plano_id: planoVal ? parseInt(planoVal) : null,
   };
-  if(!id) body.senha = document.getElementById('mu-senha').value;
+  if(!body.username) { toast('Login obrigatório', true); return; }
+  if(!id && !senha) { toast('Senha obrigatória para novo usuário', true); return; }
+  if(senha) body.senha = senha;
   const url = id ? `/admin/api/users/${id}` : '/admin/api/users';
   const method = id ? 'PUT' : 'POST';
   const d = await api(url, method, body);
@@ -828,16 +874,20 @@ async function toggleUser(id) {
   toast('Status atualizado!'); loadUsers();
 }
 
-async function deleteUser(id, name) {
-  if(!confirm(`Excluir usuário "${name}"?`)) return;
+async function deleteUser(id) {
+  const u = usersMap[id];
+  if(!confirm(`Excluir usuário "${u ? u.username : id}"?`)) return;
   const d = await api(`/admin/api/users/${id}`, 'DELETE');
   if(d.error) { toast(d.error, true); return; }
   toast('Usuário excluído!'); loadUsers();
 }
 
 // ── PLANOS ────────────────────────────────────────────────────────────────────
+let planosMap = {};
 async function loadPlanos() {
   planosData = await api('/admin/api/planos');
+  planosMap = {};
+  planosData.forEach(p => planosMap[p.id] = p);
   document.getElementById('planos-tbody').innerHTML = planosData.length ? planosData.map(p=>`
     <tr>
       <td style="color:var(--muted);font-size:11px">${p.id}</td>
@@ -850,8 +900,8 @@ async function loadPlanos() {
       <td><span class="badge ${p.ativo?'badge-ok':'badge-off'}">${p.ativo?'ATIVO':'INATIVO'}</span></td>
       <td>
         <div class="action-btns">
-          <button class="btn btn-warn btn-sm btn-icon" onclick="openModalEditPlano(${JSON.stringify(JSON.stringify(p))})" title="Editar">✏️</button>
-          <button class="btn btn-danger btn-sm btn-icon" onclick="deletePlano(${p.id},'${p.nome.replace(/'/g,"\\'")}')">🗑</button>
+          <button class="btn btn-warn btn-sm btn-icon" onclick="openModalEditPlano(${p.id})" title="Editar">✏️</button>
+          <button class="btn btn-danger btn-sm btn-icon" onclick="deletePlano(${p.id})">🗑</button>
         </div>
       </td>
     </tr>`).join('')
@@ -870,8 +920,9 @@ function openModalPlano() {
   openModal('modal-plano');
 }
 
-function openModalEditPlano(json) {
-  const p = JSON.parse(json);
+function openModalEditPlano(id) {
+  const p = planosMap[id];
+  if(!p) { toast('Plano não encontrado', true); return; }
   document.getElementById('mp-id').value=p.id;
   document.getElementById('mp-title').textContent='Editar Plano';
   document.getElementById('mp-nome').value=p.nome||'';
@@ -918,8 +969,9 @@ async function salvarPlanoRapido(id, campo, valor) {
   planosData = [];  // invalida cache para recarregar no próximo loadUsers
 }
 
-async function deletePlano(id, nome) {
-  if(!confirm(`Excluir plano "${nome}"?\nUsuários com este plano ficarão sem plano atribuído.`)) return;
+async function deletePlano(id) {
+  const p = planosMap[id];
+  if(!confirm(`Excluir plano "${p ? p.nome : id}"?\nUsuários com este plano ficarão sem plano atribuído.`)) return;
   const d = await api(`/admin/api/planos/${id}`, 'DELETE');
   if(d.error) { toast(d.error, true); return; }
   toast('Plano excluído!'); loadPlanos();
@@ -1185,6 +1237,28 @@ async function salvarFunil() {
 }
 
 // ── WEBHOOK CONFIG ────────────────────────────────────────────────────────────
+async function salvarAdminCreds() {
+  const username = document.getElementById('adm-username').value.trim();
+  const email    = document.getElementById('adm-email').value.trim();
+  const senha    = document.getElementById('adm-senha').value;
+  const senha2   = document.getElementById('adm-senha2').value;
+  if(senha && senha !== senha2) { toast('Senhas não coincidem', true); return; }
+  if(senha && senha.length < 6) { toast('Senha mínimo 6 caracteres', true); return; }
+  if(!username && !email && !senha) { toast('Preencha ao menos um campo para alterar', true); return; }
+  const body = {};
+  if(username) body.username = username;
+  if(email)    body.email    = email;
+  if(senha)    body.senha    = senha;
+  const d = await api('/admin/api/minha-conta', 'PUT', body);
+  if(d.error) { toast(d.error, true); return; }
+  toast('✔ Dados atualizados! Faça login novamente se alterou o usuário ou senha.');
+  document.getElementById('adm-username').value='';
+  document.getElementById('adm-email').value='';
+  document.getElementById('adm-senha').value='';
+  document.getElementById('adm-senha2').value='';
+  if(d.logout) setTimeout(()=>window.location='/logout', 2000);
+}
+
 async function loadMetaApp() {
   const d = await api('/admin/api/meta-app-config');
   document.getElementById('mac-base-url').value   = d.app_base_url || '';
