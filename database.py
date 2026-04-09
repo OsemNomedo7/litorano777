@@ -14,7 +14,7 @@ def _turso_arg(v):
     if isinstance(v, bytes):     return {"type": "blob",    "base64": base64.b64encode(v).decode()}
     if isinstance(v, bool):      return {"type": "integer", "value": str(int(v))}
     if isinstance(v, int):       return {"type": "integer", "value": str(v)}
-    if isinstance(v, float):     return {"type": "real",    "value": str(v)}
+    if isinstance(v, float):     return {"type": "float",   "value": str(v)}
     return {"type": "text", "value": str(v)}
 
 def _turso_val(v):
