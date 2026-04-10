@@ -129,7 +129,7 @@ def sigilopay_criar_cobranca(valor_reais, descricao, nome, email, ref_id, phone=
 PUBLIC = {
     'login', 'logo', 'static', 'api_debug_fotos', 'api_foto_fs', 'imovel_link',
     'planos_page', 'api_cadastro', 'webhook_sigilopay', 'api_planos_publicos',
-    'politica_privacidade', 'exclusao_dados',
+    'politica_privacidade', 'exclusao_dados', 'robots_txt',
 }
 # Rotas que exigem login mas NÃO exigem assinatura ativa
 SEM_ASSINATURA_OK = {'logout', 'api_assinar', 'api_minha_assinatura'}
@@ -1134,6 +1134,10 @@ def admin_webhook_config_set():
     conn.commit(); conn.close()
     log_action('admin_webhook_config')
     return jsonify({'ok': True})
+
+@app.route('/robots.txt')
+def robots_txt():
+    return 'User-agent: *\nAllow: /\n', 200, {'Content-Type': 'text/plain'}
 
 @app.route('/logo')
 def logo():
