@@ -732,6 +732,15 @@ def api_meta_contas():
     except Exception as e:
         return jsonify({'error': str(e)}), 400
 
+@app.route('/api/meta/paginas')
+def api_meta_paginas():
+    """Lista as páginas do Facebook do usuário."""
+    try:
+        data = _meta_get('me/accounts', {'fields': 'id,name,picture{url}'})
+        return jsonify(data.get('data', []))
+    except Exception as e:
+        return jsonify({'error': str(e)}), 400
+
 @app.route('/api/meta/campanhas')
 def api_meta_campanhas():
     """Lista campanhas da conta de anúncios do usuário."""

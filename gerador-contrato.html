@@ -2746,7 +2746,7 @@ function mncValidarStep(n) {
     alert('Informe o nome da campanha'); return false;
   }
   if(n === 3 && !document.getElementById('mnc-page-id').value.trim()) {
-    return confirm('O ID da Página do Facebook não foi informado.\nA campanha será criada sem o anúncio (criativo).\nVocê pode criar o anúncio depois pelo Meta Ads Manager.\n\nContinuar mesmo assim?');
+    return confirm('Nenhuma Página do Facebook selecionada.\nA campanha será criada sem o anúncio (criativo).\nVocê pode criar o anúncio depois pelo Meta Ads Manager.\n\nContinuar mesmo assim?');
   }
   return true;
 }
@@ -2756,9 +2756,34 @@ function mncSalvarPageId() {
   if(v) localStorage.setItem('mnc_page_id', v);
 }
 
+async function mncCarregarPaginas() {
+  const sel = document.getElementById('mnc-page-id');
+  sel.innerHTML = '<option value="">⏳ Carregando páginas...</option>';
+  try {
+    const r = await fetch('/api/meta/paginas');
+    const paginas = await r.json();
+    if(paginas.error) throw new Error(paginas.error);
+    if(!paginas.length) {
+      sel.innerHTML = '<option value="">Nenhuma página encontrada</option>';
+      return;
+    }
+    const saved = localStorage.getItem('mnc_page_id');
+    sel.innerHTML = '<option value="">— Selecione uma página —</option>' +
+      paginas.map(p => `<option value="${p.id}"${p.id === saved ? ' selected' : ''}>${p.name} (${p.id})</option>`).join('');
+    // Se não havia salvo ainda, seleciona a primeira automaticamente
+    if(!saved && paginas.length) {
+      sel.value = paginas[0].id;
+      localStorage.setItem('mnc_page_id', paginas[0].id);
+    }
+  } catch(e) {
+    sel.innerHTML = '<option value="">Erro ao carregar páginas</option>';
+    console.error('mncCarregarPaginas:', e);
+  }
+}
+
 function mncCarregarPageId() {
-  const saved = localStorage.getItem('mnc_page_id');
-  if(saved) document.getElementById('mnc-page-id').value = saved;
+  // mantido por compatibilidade — carregamento agora via mncCarregarPaginas()
+  mncCarregarPaginas();
 }
 
 function mncToggleDataFim() {
@@ -3305,9 +3330,11 @@ async function desconectarMeta() {
       <div id="mnc-step-3" style="display:none">
         <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:14px">
           <div style="grid-column:1/-1">
-            <div class="mnc-label">ID DA PÁGINA DO FACEBOOK *</div>
-            <input id="mnc-page-id" type="text" placeholder="ex: 123456789012345" class="mnc-input" oninput="mncSalvarPageId()">
-            <div style="font-size:9px;color:var(--muted);margin-top:3px">Salvo automaticamente para próximas campanhas · facebook.com/settings → Páginas</div>
+            <div class="mnc-label">PÁGINA DO FACEBOOK *</div>
+            <select id="mnc-page-id" class="mnc-select" onchange="mncSalvarPageId()">
+              <option value="">⏳ Carregando páginas...</option>
+            </select>
+            <div style="font-size:9px;color:var(--muted);margin-top:3px">Selecione a página que irá representar o anúncio · Salvo automaticamente</div>
           </div>
           <div style="grid-column:1/-1">
             <div class="mnc-label">FORMATO DO ANÚNCIO</div>
