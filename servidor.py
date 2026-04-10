@@ -858,17 +858,12 @@ def api_meta_criar_campanha():
             if an_pos:  targeting_obj['audience_network_positions']  = list(set(an_pos))
             if ms_pos:  targeting_obj['messenger_positions']         = list(set(ms_pos))
 
-        otimizacao = d.get('otimizacao', 'CONVERSATIONS')
         adset_data = {
-            'name':              d.get('adset_nome') or d.get('nome', 'Conjunto') + ' — Público',
-            'campaign_id':       camp_id,
-            'billing_event':     'IMPRESSIONS',
-            'optimization_goal': otimizacao,
-            'targeting':         targeting_obj,
-            'status':            'PAUSED',
+            'name':      d.get('adset_nome') or d.get('nome', 'Conjunto') + ' — Público',
+            'campaign_id': camp_id,
+            'targeting': targeting_obj,
+            'status':    'PAUSED',
         }
-        if objetivo == 'OUTCOME_ENGAGEMENT':
-            adset_data['destination_type'] = d.get('whatsapp_tipo') or 'WHATSAPP'
 
         adset = _meta_post(f'{account}/adsets', adset_data)
         adset_id = adset.get('id')
