@@ -758,20 +758,32 @@ def api_meta_criar_campanha():
         page_id    = d.get('page_id', '')
         formato    = d.get('formato', 'single')   # single | carousel
 
-        # ── 1. CAMPANHA ──────────────────────────────────────────────────────
-        camp = _meta_post(f'{account}/campaigns', {
+        # ── 1. CAMPANHA (com orçamento — CBO) ───────────────────────────────
+        orcamento_centavos = str(int(float(d.get('orcamento', 30)) * 100))
+        tipo_orcamento     = d.get('tipo_orcamento', 'daily')
+
+        camp_data = {
             'name':                  d.get('nome', 'Campanha Litorano'),
             'objective':             objetivo,
             'status':                'PAUSED',
             'special_ad_categories': [],
-        })
+            'budget_rebalance_flag': True,   # CBO — orçamento gerenciado pela campanha
+        }
+        if tipo_orcamento == 'daily':
+            camp_data['daily_budget'] = orcamento_centavos
+        else:
+            camp_data['lifetime_budget'] = orcamento_centavos
+            if d.get('data_fim'):
+                camp_data['end_time'] = d['data_fim']
+        if d.get('data_inicio'):
+            camp_data['start_time'] = d['data_inicio']
+
+        camp = _meta_post(f'{account}/campaigns', camp_data)
         camp_id = camp.get('id')
         if not camp_id:
             return jsonify({'error': f'Erro ao criar campanha: {camp}'}), 400
 
         # ── 2. AD SET ────────────────────────────────────────────────────────
-        orcamento_centavos = str(int(float(d.get('orcamento', 30)) * 100))
-        tipo_orcamento     = d.get('tipo_orcamento', 'daily')
 
         # Targeting
         genero_raw   = d.get('genero', '0')
@@ -831,26 +843,16 @@ def api_meta_criar_campanha():
 
         otimizacao = d.get('otimizacao', 'CONVERSATIONS')
         adset_data = {
-            'name':                            d.get('adset_nome') or d.get('nome', 'Conjunto') + ' — Público',
-            'campaign_id':                     camp_id,
-            'billing_event':                   'IMPRESSIONS',
-            'optimization_goal':               otimizacao,
-            'bid_strategy':                    d.get('lance', 'LOWEST_COST_WITHOUT_CAP'),
-            'targeting':                       targeting_obj,
-            'status':                          'PAUSED',
-            'is_adset_budget_sharing_enabled': False,
+            'name':              d.get('adset_nome') or d.get('nome', 'Conjunto') + ' — Público',
+            'campaign_id':       camp_id,
+            'billing_event':     'IMPRESSIONS',
+            'optimization_goal': otimizacao,
+            'bid_strategy':      d.get('lance', 'LOWEST_COST_WITHOUT_CAP'),
+            'targeting':         targeting_obj,
+            'status':            'PAUSED',
         }
         if objetivo == 'OUTCOME_ENGAGEMENT':
             adset_data['destination_type'] = d.get('whatsapp_tipo') or 'WHATSAPP'
-
-        if tipo_orcamento == 'daily':
-            adset_data['daily_budget'] = orcamento_centavos
-        else:
-            adset_data['lifetime_budget'] = orcamento_centavos
-            if d.get('data_fim'):
-                adset_data['end_time'] = d['data_fim']
-        if d.get('data_inicio'):
-            adset_data['start_time'] = d['data_inicio']
 
         adset = _meta_post(f'{account}/adsets', adset_data)
         adset_id = adset.get('id')
