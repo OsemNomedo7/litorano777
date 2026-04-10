@@ -842,6 +842,7 @@ def api_meta_criar_campanha():
             'geo_locations': geo,
             'age_min': int(d.get('idade_min', 18)),
             'age_max': int(d.get('idade_max', 65)),
+            'targeting_automation': {'advantage_audience': 0},
         }
         if genders:
             targeting_obj['genders'] = genders
