@@ -767,7 +767,6 @@ def api_meta_criar_campanha():
             'objective':             objetivo,
             'status':                'PAUSED',
             'special_ad_categories': [],
-            'budget_rebalance_flag': True,   # CBO — orçamento gerenciado pela campanha
         }
         if tipo_orcamento == 'daily':
             camp_data['daily_budget'] = orcamento_centavos
