@@ -694,8 +694,20 @@ def _meta_post(path, data):
     req = _ureq.Request(f'https://graph.facebook.com/{META_API_VER}/{path}',
                         data=payload,
                         headers={'Content-Type': 'application/x-www-form-urlencoded'})
-    with _ureq.urlopen(req, timeout=30) as r:
-        return json.loads(r.read())
+    try:
+        with _ureq.urlopen(req, timeout=30) as r:
+            return json.loads(r.read())
+    except _uerr.HTTPError as e:
+        body = ''
+        try: body = e.read().decode('utf-8', errors='replace')
+        except Exception: pass
+        print(f'[META POST ERROR] {path} → HTTP {e.code}: {body[:800]}')
+        try:
+            err_json = json.loads(body)
+            msg = err_json.get('error', {}).get('message', body[:300])
+        except Exception:
+            msg = body[:300] or str(e)
+        raise Exception(f'Meta API {e.code}: {msg}')
 
 @app.route('/api/meta/contas')
 def api_meta_contas():
