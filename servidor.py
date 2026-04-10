@@ -689,11 +689,13 @@ def _meta_post(path, data):
     token = _meta_token()
     if not token:
         raise Exception('Meta Ads não conectado')
-    data['access_token'] = token
-    payload = urllib.parse.urlencode(data).encode()
-    req = _ureq.Request(f'https://graph.facebook.com/{META_API_VER}/{path}',
-                        data=payload,
-                        headers={'Content-Type': 'application/x-www-form-urlencoded'})
+    # Envia como JSON body; access_token vai na query string
+    qs  = urllib.parse.urlencode({'access_token': token})
+    url = f'https://graph.facebook.com/{META_API_VER}/{path}?{qs}'
+    payload = json.dumps(data).encode('utf-8')
+    req = _ureq.Request(url, data=payload,
+                        headers={'Content-Type': 'application/json'})
+    print(f'[META POST] {path} body={json.dumps(data)[:600]}')
     try:
         with _ureq.urlopen(req, timeout=30) as r:
             return json.loads(r.read())
@@ -701,13 +703,16 @@ def _meta_post(path, data):
         body = ''
         try: body = e.read().decode('utf-8', errors='replace')
         except Exception: pass
-        print(f'[META POST ERROR] {path} → HTTP {e.code}: {body[:800]}')
+        print(f'[META POST ERROR] {path} → HTTP {e.code}: {body[:1200]}')
         try:
             err_json = json.loads(body)
-            msg = err_json.get('error', {}).get('message', body[:300])
+            err = err_json.get('error', {})
+            msg = err.get('error_user_msg') or err.get('message', body[:400])
+            details = f" | type={err.get('type')} code={err.get('code')} subcode={err.get('error_subcode')}"
         except Exception:
-            msg = body[:300] or str(e)
-        raise Exception(f'Meta API {e.code}: {msg}')
+            msg = body[:400] or str(e)
+            details = ''
+        raise Exception(f'Meta API {e.code}: {msg}{details}')
 
 @app.route('/api/meta/contas')
 def api_meta_contas():
@@ -746,10 +751,10 @@ def api_meta_criar_campanha():
 
         # ── 1. CAMPANHA ──────────────────────────────────────────────────────
         camp = _meta_post(f'{account}/campaigns', {
-            'name':                   d.get('nome', 'Campanha Litorano'),
-            'objective':              objetivo,
-            'status':                 'PAUSED',
-            'special_ad_categories':  'NONE',
+            'name':                  d.get('nome', 'Campanha Litorano'),
+            'objective':             objetivo,
+            'status':                'PAUSED',
+            'special_ad_categories': [],
         })
         camp_id = camp.get('id')
         if not camp_id:
@@ -822,7 +827,7 @@ def api_meta_criar_campanha():
             'billing_event':     'IMPRESSIONS',
             'optimization_goal': otimizacao,
             'bid_strategy':      d.get('lance', 'LOWEST_COST_WITHOUT_CAP'),
-            'targeting':         json.dumps(targeting_obj),
+            'targeting':         targeting_obj,
             'status':            'PAUSED',
         }
         if objetivo == 'OUTCOME_ENGAGEMENT':
@@ -890,17 +895,17 @@ def api_meta_criar_campanha():
                 story_spec = {'page_id': page_id, 'link_data': link_data}
 
             creative = _meta_post(f'{account}/adcreatives', {
-                'name':               f'Creative — {d.get("nome","Litorano")}',
-                'object_story_spec':  json.dumps(story_spec),
+                'name':              f'Creative — {d.get("nome","Litorano")}',
+                'object_story_spec': story_spec,
             })
             creative_id = creative.get('id')
 
             if creative_id:
                 ad = _meta_post(f'{account}/ads', {
-                    'name':        f'Anúncio — {d.get("nome","Litorano")}',
-                    'adset_id':    adset_id,
-                    'creative':    json.dumps({'creative_id': creative_id}),
-                    'status':      'PAUSED',
+                    'name':      f'Anúncio — {d.get("nome","Litorano")}',
+                    'adset_id':  adset_id,
+                    'creative':  {'creative_id': creative_id},
+                    'status':    'PAUSED',
                 })
                 ad_id = ad.get('id')
 
