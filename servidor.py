@@ -859,10 +859,12 @@ def api_meta_criar_campanha():
             if ms_pos:  targeting_obj['messenger_positions']         = list(set(ms_pos))
 
         adset_data = {
-            'name':      d.get('adset_nome') or d.get('nome', 'Conjunto') + ' — Público',
-            'campaign_id': camp_id,
-            'targeting': targeting_obj,
-            'status':    'PAUSED',
+            'name':              d.get('adset_nome') or d.get('nome', 'Conjunto') + ' — Público',
+            'campaign_id':       camp_id,
+            'billing_event':     'IMPRESSIONS',
+            'optimization_goal': 'IMPRESSIONS',
+            'targeting':         targeting_obj,
+            'status':            'PAUSED',
         }
 
         adset = _meta_post(f'{account}/adsets', adset_data)
