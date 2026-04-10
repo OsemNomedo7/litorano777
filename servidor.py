@@ -864,7 +864,7 @@ def api_meta_criar_campanha():
             'campaign_id':       camp_id,
             'billing_event':     'IMPRESSIONS',
             'optimization_goal': otimizacao,
-            'bid_strategy':      d.get('lance', 'LOWEST_COST_WITHOUT_CAP'),
+            'bid_strategy':      'LOWEST_COST_WITHOUT_CAP',
             'targeting':         targeting_obj,
             'status':            'PAUSED',
         }
