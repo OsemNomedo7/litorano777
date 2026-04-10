@@ -556,7 +556,7 @@ def auth_meta():
         <a href="/">← Voltar</a></div></body></html>''', 500
     base_url = _get_app_base_url()
     callback = f'{base_url}/auth/meta/callback'
-    scope = 'ads_management,ads_read'
+    scope = 'ads_management,ads_read,pages_show_list,pages_read_engagement'
     url = (f'https://www.facebook.com/dialog/oauth'
            f'?client_id={meta_app_id}'
            f'&redirect_uri={callback}'
@@ -736,9 +736,12 @@ def api_meta_contas():
 def api_meta_paginas():
     """Lista as páginas do Facebook do usuário."""
     try:
-        data = _meta_get('me/accounts', {'fields': 'id,name,picture{url}'})
-        return jsonify(data.get('data', []))
+        data = _meta_get('me/accounts', {'fields': 'id,name'})
+        paginas = data.get('data', [])
+        print(f'[META PAGINAS] encontradas: {len(paginas)} → {[p.get("name") for p in paginas]}')
+        return jsonify(paginas)
     except Exception as e:
+        print(f'[META PAGINAS ERROR] {e}')
         return jsonify({'error': str(e)}), 400
 
 @app.route('/api/meta/campanhas')
