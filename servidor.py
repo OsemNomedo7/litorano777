@@ -868,6 +868,17 @@ def api_meta_criar_campanha():
             'targeting':         targeting_obj,
             'status':            'PAUSED',
         }
+        # Com orçamento vitalício na campanha, o adset também precisa de end_time
+        if tipo_orcamento == 'lifetime':
+            data_fim = d.get('data_fim')
+            data_ini = d.get('data_inicio')
+            if not data_fim:
+                # Garante mínimo 48h a partir de agora se não foi informado
+                import datetime
+                data_fim = (datetime.datetime.utcnow() + datetime.timedelta(hours=48)).strftime('%Y-%m-%dT%H:%M:%S+0000')
+            adset_data['end_time'] = data_fim
+            if data_ini:
+                adset_data['start_time'] = data_ini
 
         adset = _meta_post(f'{account}/adsets', adset_data)
         adset_id = adset.get('id')
