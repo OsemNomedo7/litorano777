@@ -769,6 +769,7 @@ def api_meta_criar_campanha():
         objetivo   = d.get('objetivo', 'MESSAGES')
         page_id    = d.get('page_id', '')
         formato    = d.get('formato', 'single')   # single | carousel
+        print(f'[CAMP] objetivo={objetivo} page_id={repr(page_id)} formato={formato} fotos={d.get("fotos")} copy={repr(d.get("copy",""))[:60]}')
 
         # ── 1. CAMPANHA (com orçamento — CBO) ───────────────────────────────
         orcamento_centavos = str(int(float(d.get('orcamento', 30)) * 100))
@@ -900,6 +901,7 @@ def api_meta_criar_campanha():
 
         # ── 3. AD CREATIVE (se tiver page_id e fotos) ────────────────────────
         ad_id = None
+        print(f'[CREATIVE] page_id={repr(page_id)} fotos_count={len(d.get("fotos") or [])}')
         if page_id:
             fotos       = d.get('fotos') or []
             copy        = d.get('copy', '')
@@ -910,28 +912,36 @@ def api_meta_criar_campanha():
             link_fallback = url_destino or 'https://litorano777.onrender.com'
 
             def _upload_imagem(foto_url):
-                """Baixa a imagem localmente e faz upload para Meta via base64."""
-                import base64
+                """Lê imagem do disco e faz upload para Meta via base64."""
+                import base64, urllib.parse as _up
+                print(f'[UPLOAD IMG] tentando: {foto_url}')
                 try:
-                    # foto_url pode ser absoluta ou relativa ao próprio servidor
-                    if foto_url.startswith('http'):
-                        download_url = foto_url
+                    # Extrai o filepath da URL: /api/foto/fs/<path>
+                    parsed = _up.urlparse(foto_url)
+                    path_part = _up.unquote(parsed.path)  # decodifica %XX
+                    prefix = '/api/foto/fs/'
+                    if prefix in path_part:
+                        rel = path_part.split(prefix, 1)[1]
                     else:
-                        base_url = _get_app_base_url()
-                        download_url = base_url.rstrip('/') + '/' + foto_url.lstrip('/')
-                    req = _ureq.Request(download_url, headers={'User-Agent': 'LitoranoApp/1.0'})
-                    with _ureq.urlopen(req, timeout=20) as r:
-                        img_bytes = r.read()
+                        raise Exception(f'URL não reconhecida: {foto_url}')
+                    fullpath = os.path.join(IMOVEIS_DIR, rel)
+                    fullpath = os.path.abspath(fullpath)
+                    if not fullpath.startswith(os.path.abspath(IMOVEIS_DIR)):
+                        raise Exception('Path traversal bloqueado')
+                    print(f'[UPLOAD IMG] lendo disco: {fullpath}')
+                    with open(fullpath, 'rb') as fh:
+                        img_bytes = fh.read()
                     img_b64 = base64.b64encode(img_bytes).decode('utf-8')
+                    print(f'[UPLOAD IMG] tamanho b64: {len(img_b64)} chars, enviando para Meta...')
                     result = _meta_post(f'{account}/adimages', {'bytes': img_b64})
+                    print(f'[UPLOAD IMG] resposta Meta: {str(result)[:300]}')
                     images = result.get('images', {})
-                    # A API retorna {images: {<hash>: {hash, url, ...}}}
                     for key, val in images.items():
                         h = val.get('hash') or key
-                        print(f'[META UPLOAD IMG] hash={h}')
+                        print(f'[UPLOAD IMG] hash={h}')
                         return h
                 except Exception as ue:
-                    print(f'[META UPLOAD IMG ERROR] {foto_url}: {ue}')
+                    print(f'[UPLOAD IMG ERROR] {foto_url}: {ue}')
                 return None
 
             if formato == 'carousel' and len(fotos) >= 2:
@@ -979,11 +989,13 @@ def api_meta_criar_campanha():
                         link_data['picture'] = fotos[0]  # fallback para URL
                 story_spec = {'page_id': page_id, 'link_data': link_data}
 
+            print(f'[CREATIVE] story_spec page_id={page_id} keys={list(story_spec.get("link_data",story_spec).keys())}')
             creative = _meta_post(f'{account}/adcreatives', {
                 'name':              f'Creative — {d.get("nome","Litorano")}',
                 'object_story_spec': story_spec,
             })
             creative_id = creative.get('id')
+            print(f'[CREATIVE] creative_id={creative_id}')
 
             if creative_id:
                 ad = _meta_post(f'{account}/ads', {
@@ -993,6 +1005,7 @@ def api_meta_criar_campanha():
                     'status':    'PAUSED',
                 })
                 ad_id = ad.get('id')
+                print(f'[AD] ad_id={ad_id}')
 
         log_action('meta_criar_campanha', {'camp_id': camp_id, 'nome': d.get('nome'), 'formato': formato})
         return jsonify({'ok': True, 'campaign_id': camp_id, 'adset_id': adset_id, 'ad_id': ad_id})
