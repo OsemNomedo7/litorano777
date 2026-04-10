@@ -787,34 +787,50 @@ def api_meta_criar_campanha():
         # Targeting
         genero_raw   = d.get('genero', '0')
         genders      = [int(genero_raw)] if genero_raw != '0' else []
-        _CAPITAIS = {
-            'AC':'Rio Branco','AL':'Maceió','AP':'Macapá','AM':'Manaus','BA':'Salvador',
-            'CE':'Fortaleza','DF':'Brasília','ES':'Vitória','GO':'Goiânia','MA':'São Luís',
-            'MT':'Cuiabá','MS':'Campo Grande','MG':'Belo Horizonte','PA':'Belém',
-            'PB':'João Pessoa','PR':'Curitiba','PE':'Recife','PI':'Teresina',
-            'RJ':'Rio de Janeiro','RN':'Natal','RS':'Porto Alegre','RO':'Porto Velho',
-            'RR':'Boa Vista','SC':'Florianópolis','SP':'São Paulo','SE':'Aracaju','TO':'Palmas',
+        # Coordenadas lat/lng das capitais brasileiras
+        _COORD = {
+            'AC':(-9.9754,-67.8249),'AL':(-9.6658,-35.7353),'AP':(0.0349,-51.0694),
+            'AM':(-3.1190,-60.0217),'BA':(-12.9714,-38.5014),'CE':(-3.7172,-38.5433),
+            'DF':(-15.7801,-47.9292),'ES':(-20.3155,-40.3128),'GO':(-16.6864,-49.2643),
+            'MA':(-2.5297,-44.3028),'MT':(-15.6014,-56.0979),'MS':(-20.4697,-54.6201),
+            'MG':(-19.9167,-43.9345),'PA':(-1.4558,-48.5044),'PB':(-7.1195,-34.8450),
+            'PR':(-25.4284,-49.2733),'PE':(-8.0476,-34.8770),'PI':(-5.0892,-42.8019),
+            'RJ':(-22.9068,-43.1729),'RN':(-5.7793,-35.2009),'RS':(-30.0346,-51.2177),
+            'RO':(-8.7612,-63.9004),'RR':(2.8235,-60.6758),'SC':(-27.5954,-48.5480),
+            'SP':(-23.5505,-46.6333),'SE':(-10.9472,-37.0731),'TO':(-10.1837,-48.3336),
         }
+
+        def _geocode(cidade, estado):
+            """Geocodifica cidade via Nominatim (OSM). Retorna (lat, lng) ou None."""
+            import urllib.parse as _up
+            try:
+                q   = _up.quote(f"{cidade}, {estado}, Brasil")
+                url = f"https://nominatim.openstreetmap.org/search?q={q}&format=json&limit=1&countrycodes=br"
+                req = _ureq.Request(url, headers={'User-Agent': 'LitoranoApp/1.0'})
+                with _ureq.urlopen(req, timeout=8) as r:
+                    res = json.loads(r.read())
+                if res:
+                    return float(res[0]['lat']), float(res[0]['lon'])
+            except Exception as ge:
+                print(f'[GEOCODE] {cidade}/{estado}: {ge}')
+            return None, None
+
         localizacoes = d.get('localizacoes') or []
         if localizacoes:
             custom_locs = []
             for loc in localizacoes:
                 cidade = (loc.get('cidade') or '').strip()
-                estado = (loc.get('estado') or 'BR').strip().upper()
+                estado = (loc.get('estado') or 'SP').strip().upper()
+                raio   = int(loc.get('raio') or 30)
                 if cidade:
-                    custom_locs.append({
-                        'address_string': f"{cidade}, {estado}, Brasil",
-                        'radius':         int(loc.get('raio') or 30),
-                        'distance_unit':  'kilometer',
-                    })
+                    lat, lng = _geocode(cidade, estado)
+                    if not lat:
+                        lat, lng = _COORD.get(estado, (-15.7801, -47.9292))
                 else:
-                    # Estado inteiro — usa capital + raio grande
-                    capital = _CAPITAIS.get(estado, estado)
-                    custom_locs.append({
-                        'address_string': f"{capital}, {estado}, Brasil",
-                        'radius':         500,
-                        'distance_unit':  'kilometer',
-                    })
+                    lat, lng = _COORD.get(estado, (-15.7801, -47.9292))
+                    raio = 500  # estado inteiro
+                custom_locs.append({'latitude': lat, 'longitude': lng,
+                                    'radius': raio, 'distance_unit': 'kilometer'})
             geo = {'custom_locations': custom_locs}
         else:
             geo = {'countries': ['BR']}
