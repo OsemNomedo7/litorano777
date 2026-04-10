@@ -825,7 +825,7 @@ def api_meta_criar_campanha():
             'targeting':         json.dumps(targeting_obj),
             'status':            'PAUSED',
         }
-        if objetivo == 'MESSAGES':
+        if objetivo == 'OUTCOME_ENGAGEMENT':
             adset_data['destination_type'] = d.get('whatsapp_tipo') or 'WHATSAPP'
 
         if tipo_orcamento == 'daily':
@@ -876,7 +876,7 @@ def api_meta_criar_campanha():
             else:
                 # Imagem única
                 cta_value = {'link': url_destino or 'https://litorano777.onrender.com'}
-                if objetivo == 'MESSAGES' and d.get('whatsapp_phone'):
+                if objetivo == 'OUTCOME_ENGAGEMENT' and d.get('whatsapp_phone'):
                     cta_value['whatsapp_number'] = d['whatsapp_phone']
                 link_data = {
                     'link':        url_destino or 'https://litorano777.onrender.com',

@@ -2769,9 +2769,12 @@ function mncToggleDataFim() {
 function mncAtualizarOtimizacao() {
   const obj = document.getElementById('mnc-objetivo').value;
   const map = {
-    MESSAGES: 'CONVERSATIONS', TRAFFIC: 'LINK_CLICKS',
-    LEAD_GENERATION: 'LEAD_GENERATION', REACH: 'REACH',
-    BRAND_AWARENESS: 'REACH', VIDEO_VIEWS: 'THRUPLAY',
+    OUTCOME_ENGAGEMENT:    'CONVERSATIONS',
+    OUTCOME_TRAFFIC:       'LINK_CLICKS',
+    OUTCOME_LEADS:         'LEAD_GENERATION',
+    OUTCOME_AWARENESS:     'REACH',
+    OUTCOME_SALES:         'OFFSITE_CONVERSIONS',
+    OUTCOME_APP_PROMOTION: 'APP_INSTALLS',
   };
   document.getElementById('mnc-otimizacao').value = map[obj] || 'CONVERSATIONS';
   mncToggleWhatsAppFields();
@@ -2785,7 +2788,7 @@ function mncTogglePosicionamento() {
 function mncToggleWhatsAppFields() {
   const obj  = document.getElementById('mnc-objetivo')?.value;
   const wrap = document.getElementById('mnc-whatsapp-wrap');
-  if(wrap) wrap.style.display = obj === 'MESSAGES' ? '' : 'none';
+  if(wrap) wrap.style.display = obj === 'OUTCOME_ENGAGEMENT' ? '' : 'none';
 }
 
 function mncPreviewWaMe() {
@@ -3134,12 +3137,12 @@ async function desconectarMeta() {
           <div>
             <div class="mnc-label">OBJETIVO</div>
             <select id="mnc-objetivo" class="mnc-select" onchange="mncAtualizarOtimizacao()">
-              <option value="MESSAGES">💬 Mensagens (WhatsApp)</option>
-              <option value="TRAFFIC">🔗 Tráfego (Link)</option>
-              <option value="LEAD_GENERATION">📋 Geração de Leads</option>
-              <option value="REACH">📢 Alcance</option>
-              <option value="BRAND_AWARENESS">⭐ Reconhecimento de marca</option>
-              <option value="VIDEO_VIEWS">▶ Visualizações de vídeo</option>
+              <option value="OUTCOME_ENGAGEMENT">💬 Mensagens (WhatsApp)</option>
+              <option value="OUTCOME_TRAFFIC">🔗 Tráfego (Link)</option>
+              <option value="OUTCOME_LEADS">📋 Geração de Leads</option>
+              <option value="OUTCOME_AWARENESS">📢 Alcance / Reconhecimento</option>
+              <option value="OUTCOME_SALES">🛒 Vendas / Conversões</option>
+              <option value="OUTCOME_APP_PROMOTION">📱 Promoção de app</option>
             </select>
           </div>
           <div>
