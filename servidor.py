@@ -913,29 +913,38 @@ def api_meta_criar_campanha():
             link_fallback = url_destino or 'https://litorano777.onrender.com'
 
             def _upload_imagem(foto_url):
-                """Lê imagem do disco e faz upload para Meta via base64."""
+                """Lê imagem do banco e faz upload para Meta via base64."""
                 import base64, urllib.parse as _up
                 print(f'[UPLOAD IMG] tentando: {foto_url}')
                 try:
-                    # Extrai o filepath da URL: /api/foto/fs/<path>
-                    parsed = _up.urlparse(foto_url)
-                    path_part = _up.unquote(parsed.path)  # decodifica %XX
-                    prefix = '/api/foto/fs/'
-                    if prefix in path_part:
-                        rel = path_part.split(prefix, 1)[1]
-                    else:
+                    # Extrai slug/nome_orig da URL: /api/foto/fs/<slug>/<nome_orig>
+                    parsed  = _up.urlparse(foto_url)
+                    path_part = _up.unquote(parsed.path)
+                    prefix  = '/api/foto/fs/'
+                    if prefix not in path_part:
                         raise Exception(f'URL não reconhecida: {foto_url}')
-                    fullpath = os.path.join(IMOVEIS_DIR, rel)
-                    fullpath = os.path.abspath(fullpath)
-                    if not fullpath.startswith(os.path.abspath(IMOVEIS_DIR)):
-                        raise Exception('Path traversal bloqueado')
-                    print(f'[UPLOAD IMG] lendo disco: {fullpath}')
-                    with open(fullpath, 'rb') as fh:
-                        img_bytes = fh.read()
-                    img_b64 = base64.b64encode(img_bytes).decode('utf-8')
-                    print(f'[UPLOAD IMG] tamanho b64: {len(img_b64)} chars, enviando para Meta...')
+                    rel       = path_part.split(prefix, 1)[1]   # slug/nome_orig
+                    parts     = rel.split('/', 1)
+                    slug      = parts[0]
+                    nome_orig = parts[1] if len(parts) > 1 else ''
+                    print(f'[UPLOAD IMG] buscando banco: slug={slug} nome={nome_orig}')
+                    # Busca blob no banco pela junção imoveis.slug + fotos.nome_orig
+                    _conn = get_db()
+                    row = _conn.execute(
+                        '''SELECT f.dados, f.mime FROM fotos f
+                           JOIN imoveis i ON i.id = f.imovel_id
+                           WHERE i.slug=? AND f.nome_orig=?
+                           LIMIT 1''',
+                        (slug, nome_orig)
+                    ).fetchone()
+                    _conn.close()
+                    if not row or not row['dados']:
+                        raise Exception(f'Foto não encontrada no banco: {slug}/{nome_orig}')
+                    img_bytes = bytes(row['dados']) if isinstance(row['dados'], memoryview) else row['dados']
+                    img_b64   = base64.b64encode(img_bytes).decode('utf-8')
+                    print(f'[UPLOAD IMG] b64 size={len(img_b64)}, enviando para Meta...')
                     result = _meta_post(f'{account}/adimages', {'bytes': img_b64})
-                    print(f'[UPLOAD IMG] resposta Meta: {str(result)[:300]}')
+                    print(f'[UPLOAD IMG] resposta: {str(result)[:300]}')
                     images = result.get('images', {})
                     for key, val in images.items():
                         h = val.get('hash') or key
@@ -1009,7 +1018,10 @@ def api_meta_criar_campanha():
                 print(f'[AD] ad_id={ad_id}')
 
         log_action('meta_criar_campanha', {'camp_id': camp_id, 'nome': d.get('nome'), 'formato': formato})
-        return jsonify({'ok': True, 'campaign_id': camp_id, 'adset_id': adset_id, 'ad_id': ad_id})
+        resp = {'ok': True, 'campaign_id': camp_id, 'adset_id': adset_id, 'ad_id': ad_id}
+        if page_id and not ad_id:
+            resp['aviso'] = 'Campanha e conjunto criados, mas o anúncio (criativo) não foi criado. Verifique os logs do servidor.'
+        return jsonify(resp)
     except Exception as e:
         import traceback; traceback.print_exc()
         return jsonify({'error': str(e)}), 400

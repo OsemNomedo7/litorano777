@@ -3013,7 +3013,11 @@ async function criarCampanha() {
   btn.disabled = false; btn.textContent = '🚀 Criar Campanha';
   if(d.error) { alert('Erro: ' + d.error); return; }
   document.getElementById('meta-form-nova').style.display = 'none';
-  alert('✅ Campanha criada com sucesso! Acesse o Ads Manager para revisá-la antes de ativar.');
+  if(d.aviso) {
+    alert('⚠️ ' + d.aviso + '\n\nCampanha ID: ' + d.campaign_id + '\nConjunto ID: ' + d.adset_id);
+  } else {
+    alert('✅ Campanha criada com sucesso!\n\nCampanha: ' + d.campaign_id + '\nConjunto: ' + d.adset_id + '\nAnúncio: ' + (d.ad_id || '(não criado)') + '\n\nAcesse o Ads Manager para revisar antes de ativar.');
+  }
   carregarCampanhas();
 }
 
