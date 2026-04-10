@@ -907,22 +907,52 @@ def api_meta_criar_campanha():
             desc_ad     = d.get('descricao_ad', '')
             cta_type    = d.get('cta', 'LEARN_MORE')
             url_destino = d.get('url_destino', '')
+            link_fallback = url_destino or 'https://litorano777.onrender.com'
+
+            def _upload_imagem(foto_url):
+                """Baixa a imagem localmente e faz upload para Meta via base64."""
+                import base64
+                try:
+                    # foto_url pode ser absoluta ou relativa ao próprio servidor
+                    if foto_url.startswith('http'):
+                        download_url = foto_url
+                    else:
+                        base_url = _get_app_base_url()
+                        download_url = base_url.rstrip('/') + '/' + foto_url.lstrip('/')
+                    req = _ureq.Request(download_url, headers={'User-Agent': 'LitoranoApp/1.0'})
+                    with _ureq.urlopen(req, timeout=20) as r:
+                        img_bytes = r.read()
+                    img_b64 = base64.b64encode(img_bytes).decode('utf-8')
+                    result = _meta_post(f'{account}/adimages', {'bytes': img_b64})
+                    images = result.get('images', {})
+                    # A API retorna {images: {<hash>: {hash, url, ...}}}
+                    for key, val in images.items():
+                        h = val.get('hash') or key
+                        print(f'[META UPLOAD IMG] hash={h}')
+                        return h
+                except Exception as ue:
+                    print(f'[META UPLOAD IMG ERROR] {foto_url}: {ue}')
+                return None
 
             if formato == 'carousel' and len(fotos) >= 2:
-                # Carrossel
+                # Carrossel — faz upload de cada imagem e usa image_hash
                 titulo_tpl = d.get('carousel_titulo', '{nome}')
                 nome_imovel = d.get('imovel_nome', headline)
                 cards = []
                 for i, foto_url in enumerate(fotos[:10]):
                     titulo_card = titulo_tpl.replace('{n}', str(i+1)).replace('{nome}', nome_imovel) or headline
-                    card = {'link': url_destino or 'https://litorano777.onrender.com', 'name': titulo_card}
+                    card = {'link': link_fallback, 'name': titulo_card}
                     if foto_url:
-                        card['picture'] = foto_url
+                        img_hash = _upload_imagem(foto_url)
+                        if img_hash:
+                            card['image_hash'] = img_hash
+                        else:
+                            card['picture'] = foto_url  # fallback para URL
                     cards.append(card)
                 story_spec = {
                     'page_id': page_id,
                     'link_data': {
-                        'link':               url_destino or 'https://litorano777.onrender.com',
+                        'link':               link_fallback,
                         'message':            copy,
                         'child_attachments':  cards,
                         'call_to_action':     {'type': cta_type},
@@ -930,19 +960,23 @@ def api_meta_criar_campanha():
                     }
                 }
             else:
-                # Imagem única
-                cta_value = {'link': url_destino or 'https://litorano777.onrender.com'}
+                # Imagem única — faz upload e usa image_hash
+                cta_value = {'link': link_fallback}
                 if objetivo == 'OUTCOME_ENGAGEMENT' and d.get('whatsapp_phone'):
                     cta_value['whatsapp_number'] = d['whatsapp_phone']
                 link_data = {
-                    'link':        url_destino or 'https://litorano777.onrender.com',
+                    'link':        link_fallback,
                     'message':     copy,
                     'name':        headline,
                     'description': desc_ad,
                     'call_to_action': {'type': cta_type, 'value': cta_value},
                 }
                 if fotos:
-                    link_data['picture'] = fotos[0]
+                    img_hash = _upload_imagem(fotos[0])
+                    if img_hash:
+                        link_data['image_hash'] = img_hash
+                    else:
+                        link_data['picture'] = fotos[0]  # fallback para URL
                 story_spec = {'page_id': page_id, 'link_data': link_data}
 
             creative = _meta_post(f'{account}/adcreatives', {
