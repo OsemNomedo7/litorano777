@@ -767,6 +767,7 @@ def api_meta_criar_campanha():
             'objective':             objetivo,
             'status':                'PAUSED',
             'special_ad_categories': [],
+            'bid_strategy':          'LOWEST_COST_WITHOUT_CAP',
         }
         if tipo_orcamento == 'daily':
             camp_data['daily_budget'] = orcamento_centavos
@@ -862,7 +863,8 @@ def api_meta_criar_campanha():
             'name':              d.get('adset_nome') or d.get('nome', 'Conjunto') + ' — Público',
             'campaign_id':       camp_id,
             'billing_event':     'IMPRESSIONS',
-            'optimization_goal': 'IMPRESSIONS',
+            'optimization_goal': 'REACH',
+            'bid_strategy':      'LOWEST_COST_WITHOUT_CAP',
             'targeting':         targeting_obj,
             'status':            'PAUSED',
         }
