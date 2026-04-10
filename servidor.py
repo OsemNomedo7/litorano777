@@ -689,13 +689,22 @@ def _meta_post(path, data):
     token = _meta_token()
     if not token:
         raise Exception('Meta Ads não conectado')
-    # Envia como JSON body; access_token vai na query string
-    qs  = urllib.parse.urlencode({'access_token': token})
-    url = f'https://graph.facebook.com/{META_API_VER}/{path}?{qs}'
-    payload = json.dumps(data).encode('utf-8')
+
+    def _encode_val(v):
+        """Converte valores para form-urlencoded compatível com Meta API."""
+        if isinstance(v, bool):
+            return 'true' if v else 'false'
+        if isinstance(v, (dict, list)):
+            return json.dumps(v)
+        return v
+
+    flat = {k: _encode_val(v) for k, v in data.items()}
+    flat['access_token'] = token
+    payload = urllib.parse.urlencode(flat).encode('utf-8')
+    url = f'https://graph.facebook.com/{META_API_VER}/{path}'
     req = _ureq.Request(url, data=payload,
-                        headers={'Content-Type': 'application/json'})
-    print(f'[META POST] {path} body={json.dumps(data)[:600]}')
+                        headers={'Content-Type': 'application/x-www-form-urlencoded'})
+    print(f'[META POST] {path} keys={list(flat.keys())} payload={payload.decode()[:600]}')
     try:
         with _ureq.urlopen(req, timeout=30) as r:
             return json.loads(r.read())
