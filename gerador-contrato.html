@@ -2612,7 +2612,7 @@ Quer saber mais? Chama no WhatsApp e garante sua reserva! 👇`;
   document.getElementById('mnc-copy').value         = copyTexto.trim();
   document.getElementById('mnc-headline').value     = `${im.nome}${cidade ? ' — '+cidade : ''}`;
   document.getElementById('mnc-descricao-ad').value = info || 'Imóvel disponível para temporada';
-  document.getElementById('mnc-cta').value          = 'SEND_MESSAGE';
+  document.getElementById('mnc-cta').value          = 'MESSAGE_PAGE';
   if(im.whatsapp) document.getElementById('mnc-whatsapp-phone').value = im.whatsapp.replace(/\D/g,'');
   mncToggleWhatsAppFields();
 
@@ -3360,10 +3360,19 @@ async function desconectarMeta() {
             <select id="mnc-cta" class="mnc-select">
               <option value="LEARN_MORE">Saiba Mais</option>
               <option value="CONTACT_US">Entre em Contato</option>
-              <option value="BOOK_TRAVEL">Reserve Agora</option>
               <option value="GET_QUOTE">Solicitar Orçamento</option>
-              <option value="SEND_MESSAGE">Enviar Mensagem</option>
+              <option value="GET_IN_TOUCH">Fale Conosco</option>
+              <option value="MESSAGE_PAGE">Mensagem pela Página</option>
+              <option value="WHATSAPP_MESSAGE">Mensagem no WhatsApp</option>
+              <option value="WHATSAPP_LINK">Link do WhatsApp</option>
+              <option value="CHAT_ON_WHATSAPP">Chat no WhatsApp</option>
+              <option value="INQUIRE_NOW">Solicitar Informações</option>
+              <option value="BOOK_A_CONSULTATION">Agendar Consulta</option>
+              <option value="GET_A_QUOTE">Pedir Orçamento</option>
+              <option value="SEE_MORE">Ver Mais</option>
+              <option value="SIGN_UP">Cadastrar</option>
               <option value="CALL_NOW">Ligar Agora</option>
+              <option value="CALL">Ligar</option>
             </select>
           </div>
           <div>
