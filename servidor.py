@@ -822,13 +822,15 @@ def api_meta_criar_campanha():
                 cidade = (loc.get('cidade') or '').strip()
                 estado = (loc.get('estado') or 'SP').strip().upper()
                 raio   = int(loc.get('raio') or 30)
+                MAX_RAIO = 80  # Meta aceita no máximo ~50 milhas (~80 km)
                 if cidade:
                     lat, lng = _geocode(cidade, estado)
                     if not lat:
                         lat, lng = _COORD.get(estado, (-15.7801, -47.9292))
                 else:
                     lat, lng = _COORD.get(estado, (-15.7801, -47.9292))
-                    raio = 500  # estado inteiro
+                    raio = MAX_RAIO  # estado: raio máximo ao redor da capital
+                raio = min(raio, MAX_RAIO)
                 custom_locs.append({'latitude': lat, 'longitude': lng,
                                     'radius': raio, 'distance_unit': 'kilometer'})
             geo = {'custom_locations': custom_locs}
