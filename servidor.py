@@ -822,13 +822,14 @@ def api_meta_criar_campanha():
 
         otimizacao = d.get('otimizacao', 'CONVERSATIONS')
         adset_data = {
-            'name':              d.get('adset_nome') or d.get('nome', 'Conjunto') + ' — Público',
-            'campaign_id':       camp_id,
-            'billing_event':     'IMPRESSIONS',
-            'optimization_goal': otimizacao,
-            'bid_strategy':      d.get('lance', 'LOWEST_COST_WITHOUT_CAP'),
-            'targeting':         targeting_obj,
-            'status':            'PAUSED',
+            'name':                            d.get('adset_nome') or d.get('nome', 'Conjunto') + ' — Público',
+            'campaign_id':                     camp_id,
+            'billing_event':                   'IMPRESSIONS',
+            'optimization_goal':               otimizacao,
+            'bid_strategy':                    d.get('lance', 'LOWEST_COST_WITHOUT_CAP'),
+            'targeting':                       targeting_obj,
+            'status':                          'PAUSED',
+            'is_adset_budget_sharing_enabled': False,
         }
         if objetivo == 'OUTCOME_ENGAGEMENT':
             adset_data['destination_type'] = d.get('whatsapp_tipo') or 'WHATSAPP'
