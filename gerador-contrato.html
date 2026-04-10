@@ -2738,6 +2738,7 @@ function mncRenderStep() {
   document.getElementById('mnc-btn-prev').style.display = _mncStep > 1 ? '' : 'none';
   document.getElementById('mnc-btn-next').style.display = _mncStep < 3 ? '' : 'none';
   document.getElementById('btn-criar-campanha').style.display = _mncStep === 3 ? '' : 'none';
+  if(_mncStep === 3) mncCarregarPageId();
 }
 
 function mncValidarStep(n) {
@@ -2745,9 +2746,19 @@ function mncValidarStep(n) {
     alert('Informe o nome da campanha'); return false;
   }
   if(n === 3 && !document.getElementById('mnc-page-id').value.trim()) {
-    alert('Informe o ID da Página do Facebook'); return false;
+    return confirm('O ID da Página do Facebook não foi informado.\nA campanha será criada sem o anúncio (criativo).\nVocê pode criar o anúncio depois pelo Meta Ads Manager.\n\nContinuar mesmo assim?');
   }
   return true;
+}
+
+function mncSalvarPageId() {
+  const v = document.getElementById('mnc-page-id').value.trim();
+  if(v) localStorage.setItem('mnc_page_id', v);
+}
+
+function mncCarregarPageId() {
+  const saved = localStorage.getItem('mnc_page_id');
+  if(saved) document.getElementById('mnc-page-id').value = saved;
 }
 
 function mncToggleDataFim() {
@@ -3292,8 +3303,8 @@ async function desconectarMeta() {
         <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:14px">
           <div style="grid-column:1/-1">
             <div class="mnc-label">ID DA PÁGINA DO FACEBOOK *</div>
-            <input id="mnc-page-id" type="text" placeholder="ex: 123456789012345" class="mnc-input">
-            <div style="font-size:9px;color:var(--muted);margin-top:3px">Acesse facebook.com/settings → Páginas para encontrar o ID</div>
+            <input id="mnc-page-id" type="text" placeholder="ex: 123456789012345" class="mnc-input" oninput="mncSalvarPageId()">
+            <div style="font-size:9px;color:var(--muted);margin-top:3px">Salvo automaticamente para próximas campanhas · facebook.com/settings → Páginas</div>
           </div>
           <div style="grid-column:1/-1">
             <div class="mnc-label">FORMATO DO ANÚNCIO</div>
