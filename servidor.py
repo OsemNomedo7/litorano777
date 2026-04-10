@@ -129,6 +129,7 @@ def sigilopay_criar_cobranca(valor_reais, descricao, nome, email, ref_id, phone=
 PUBLIC = {
     'login', 'logo', 'static', 'api_debug_fotos', 'api_foto_fs', 'imovel_link',
     'planos_page', 'api_cadastro', 'webhook_sigilopay', 'api_planos_publicos',
+    'politica_privacidade', 'exclusao_dados',
 }
 # Rotas que exigem login mas NÃO exigem assinatura ativa
 SEM_ASSINATURA_OK = {'logout', 'api_assinar', 'api_minha_assinatura'}
@@ -1137,6 +1138,162 @@ def admin_webhook_config_set():
 @app.route('/logo')
 def logo():
     return send_file(LOGO, mimetype='image/png') if os.path.exists(LOGO) else ('', 404)
+
+@app.route('/politica-privacidade')
+def politica_privacidade():
+    return '''<!DOCTYPE html>
+<html lang="pt-BR"><head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Política de Privacidade — LITORANO</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap');
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Segoe UI',sans-serif;background:#03030d;color:#ccd0f0;min-height:100vh;
+  background-image:linear-gradient(rgba(0,245,255,.018) 1px,transparent 1px),linear-gradient(90deg,rgba(0,245,255,.018) 1px,transparent 1px);
+  background-size:44px 44px}
+.wrap{max-width:760px;margin:0 auto;padding:60px 24px}
+.logo{text-align:center;margin-bottom:40px}
+.logo img{height:40px}
+h1{font-family:'Share Tech Mono',monospace;font-size:20px;color:#00f5ff;letter-spacing:2px;text-transform:uppercase;margin-bottom:8px}
+.tag{font-family:'Share Tech Mono',monospace;font-size:10px;color:#4a4a7a;letter-spacing:2px;margin-bottom:40px}
+h2{font-family:'Share Tech Mono',monospace;font-size:13px;color:#00f5ff;letter-spacing:1px;text-transform:uppercase;margin:32px 0 12px;border-left:3px solid #00f5ff;padding-left:12px}
+p,li{font-size:14px;color:#9090b0;line-height:1.8;margin-bottom:8px}
+ul{padding-left:20px;margin-bottom:8px}
+a{color:#00f5ff;text-decoration:none}
+.box{background:#07071a;border:1px solid rgba(0,245,255,.1);border-radius:12px;padding:24px;margin-top:40px;font-family:'Share Tech Mono',monospace;font-size:11px;color:#4a4a7a;text-align:center}
+</style></head><body>
+<div class="wrap">
+  <div class="logo"><img src="/logo" alt="LITORANO"></div>
+  <h1>Política de Privacidade</h1>
+  <div class="tag">Última atualização: Abril de 2026</div>
+
+  <h2>1. Quem somos</h2>
+  <p>A plataforma <strong style="color:#ccd0f0">LITORANO</strong> é um sistema SaaS voltado para corretores e imobiliárias, oferecendo geração de documentos de locação e criação de campanhas no Meta Ads.</p>
+
+  <h2>2. Dados que coletamos</h2>
+  <ul>
+    <li>Nome, e-mail e senha dos usuários cadastrados</li>
+    <li>Informações de imóveis inseridas pelo próprio usuário</li>
+    <li>Token de acesso ao Meta Ads (Facebook) fornecido voluntariamente pelo usuário</li>
+    <li>Dados de campanhas e anúncios criados via a plataforma</li>
+    <li>Logs de acesso e ações realizadas no sistema</li>
+  </ul>
+
+  <h2>3. Como usamos os dados</h2>
+  <ul>
+    <li>Autenticação e controle de acesso à plataforma</li>
+    <li>Criação e gerenciamento de campanhas publicitárias no Meta Ads em nome do usuário</li>
+    <li>Geração de documentos (contratos, boletos, laudos)</li>
+    <li>Comunicação sobre a conta e suporte técnico</li>
+  </ul>
+
+  <h2>4. Uso da API do Meta (Facebook)</h2>
+  <p>A LITORANO utiliza a API do Meta Ads para criar e gerenciar campanhas publicitárias. Ao conectar sua conta do Facebook, você autoriza o acesso às seguintes permissões:</p>
+  <ul>
+    <li><strong style="color:#ccd0f0">ads_management</strong> — criação e edição de campanhas, conjuntos e anúncios</li>
+    <li><strong style="color:#ccd0f0">ads_read</strong> — leitura de campanhas e relatórios de desempenho</li>
+    <li><strong style="color:#ccd0f0">pages_show_list</strong> — listagem das suas Páginas do Facebook</li>
+    <li><strong style="color:#ccd0f0">pages_read_engagement</strong> — leitura básica das suas Páginas</li>
+  </ul>
+  <p>Essas permissões são usadas exclusivamente para criar anúncios em seu nome. Não compartilhamos seu token ou dados do Meta com terceiros.</p>
+
+  <h2>5. Compartilhamento de dados</h2>
+  <p>Não vendemos, alugamos ou compartilhamos seus dados pessoais com terceiros, exceto quando exigido por lei ou necessário para operar os serviços integrados (Meta Ads API, processador de pagamentos).</p>
+
+  <h2>6. Segurança</h2>
+  <p>Os dados são armazenados em servidores seguros. Os tokens de acesso ao Meta são armazenados de forma criptografada e associados exclusivamente à sua conta.</p>
+
+  <h2>7. Seus direitos</h2>
+  <ul>
+    <li>Solicitar acesso, correção ou exclusão dos seus dados a qualquer momento</li>
+    <li>Revogar o acesso ao Meta Ads desconectando sua conta na plataforma</li>
+    <li>Encerrar sua conta e solicitar a remoção completa dos dados</li>
+  </ul>
+
+  <h2>8. Retenção de dados</h2>
+  <p>Os dados são mantidos enquanto a conta estiver ativa. Após o cancelamento, os dados são excluídos em até 30 dias, exceto quando houver obrigação legal de retenção.</p>
+
+  <h2>9. Contato</h2>
+  <p>Para dúvidas ou solicitações relacionadas à privacidade, entre em contato pelo suporte da plataforma.</p>
+
+  <div class="box">LITORANO SaaS · Todos os direitos reservados · <a href="/">litorano777.onrender.com</a></div>
+</div>
+</body></html>'''
+
+@app.route('/exclusao-dados')
+def exclusao_dados():
+    return '''<!DOCTYPE html>
+<html lang="pt-BR"><head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Exclusão de Dados — LITORANO</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap');
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Segoe UI',sans-serif;background:#03030d;color:#ccd0f0;min-height:100vh;
+  background-image:linear-gradient(rgba(0,245,255,.018) 1px,transparent 1px),linear-gradient(90deg,rgba(0,245,255,.018) 1px,transparent 1px);
+  background-size:44px 44px}
+.wrap{max-width:760px;margin:0 auto;padding:60px 24px}
+.logo{text-align:center;margin-bottom:40px}
+.logo img{height:40px}
+h1{font-family:'Share Tech Mono',monospace;font-size:20px;color:#00f5ff;letter-spacing:2px;text-transform:uppercase;margin-bottom:8px}
+.tag{font-family:'Share Tech Mono',monospace;font-size:10px;color:#4a4a7a;letter-spacing:2px;margin-bottom:40px}
+h2{font-family:'Share Tech Mono',monospace;font-size:13px;color:#00f5ff;letter-spacing:1px;text-transform:uppercase;margin:32px 0 12px;border-left:3px solid #00f5ff;padding-left:12px}
+p,li{font-size:14px;color:#9090b0;line-height:1.8;margin-bottom:8px}
+ul{padding-left:20px;margin-bottom:8px}
+.step{background:#07071a;border:1px solid rgba(0,245,255,.1);border-radius:12px;padding:20px 24px;margin-bottom:12px;display:flex;gap:16px;align-items:flex-start}
+.step-num{font-family:'Share Tech Mono',monospace;font-size:20px;color:#00f5ff;font-weight:700;flex-shrink:0;line-height:1}
+.step-text{font-size:13px;color:#9090b0;line-height:1.7}
+.step-text strong{color:#ccd0f0}
+.box{background:#07071a;border:1px solid rgba(0,245,255,.1);border-radius:12px;padding:24px;margin-top:40px;font-family:'Share Tech Mono',monospace;font-size:11px;color:#4a4a7a;text-align:center}
+a{color:#00f5ff;text-decoration:none}
+</style></head><body>
+<div class="wrap">
+  <div class="logo"><img src="/logo" alt="LITORANO"></div>
+  <h1>Exclusão de Dados</h1>
+  <div class="tag">Instruções para remoção de dados do Facebook/Meta</div>
+
+  <p>De acordo com a política do Meta (Facebook), você tem o direito de solicitar a exclusão de todos os dados que a plataforma <strong style="color:#ccd0f0">LITORANO</strong> coletou através da sua conta do Facebook.</p>
+
+  <h2>Como solicitar a exclusão</h2>
+
+  <div class="step">
+    <div class="step-num">01</div>
+    <div class="step-text"><strong>Acesse a plataforma LITORANO</strong><br>
+    Faça login em <a href="/">litorano777.onrender.com</a> com sua conta.</div>
+  </div>
+
+  <div class="step">
+    <div class="step-num">02</div>
+    <div class="step-text"><strong>Desconecte o Meta Ads</strong><br>
+    No painel principal, clique em <strong>Meta Ads → Desconectar conta</strong>. Isso revoga o token de acesso imediatamente.</div>
+  </div>
+
+  <div class="step">
+    <div class="step-num">03</div>
+    <div class="step-text"><strong>Solicite a exclusão da conta</strong><br>
+    Entre em contato com o suporte da plataforma informando seu e-mail cadastrado e solicite a exclusão completa. Seus dados serão removidos em até <strong>30 dias</strong>.</div>
+  </div>
+
+  <div class="step">
+    <div class="step-num">04</div>
+    <div class="step-text"><strong>Revogue o acesso pelo Facebook</strong><br>
+    Acesse <a href="https://www.facebook.com/settings?tab=applications" target="_blank">facebook.com/settings → Aplicativos e sites</a>, localize <strong>LITORANO</strong> e clique em <strong>Remover</strong>.</div>
+  </div>
+
+  <h2>O que será excluído</h2>
+  <ul>
+    <li>Token de acesso ao Meta Ads</li>
+    <li>Dados de conta e perfil cadastrados</li>
+    <li>Histórico de campanhas criadas via plataforma</li>
+    <li>Logs de atividade associados à sua conta</li>
+  </ul>
+
+  <h2>O que não podemos excluir</h2>
+  <p>Campanhas, anúncios e criativos que já foram publicados no Meta Ads permanecem na plataforma do Facebook e devem ser excluídos diretamente pelo <a href="https://business.facebook.com/" target="_blank">Meta Business Manager</a>.</p>
+
+  <div class="box">LITORANO SaaS · Todos os direitos reservados · <a href="/">litorano777.onrender.com</a></div>
+</div>
+</body></html>'''
 
 # ─── APP PRINCIPAL ────────────────────────────────────────────────────────────
 
